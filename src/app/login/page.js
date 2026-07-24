@@ -265,7 +265,8 @@ export default function LoginPage() {
         
         {/* Footer Text */}
         <div className="mt-8 text-center opacity-60 hover:opacity-100 transition-opacity">
-          <p className="text-[11px] text-text-muted font-bold tracking-widest uppercase">Secure AI Infrastructure</p>
+          <p className="text-[11px] text-text-muted font-bold tracking-widest uppercase mb-1">Secure AI Infrastructure</p>
+          <p className="text-[10px] text-text-subtle font-medium">Fork do 9Router</p>
         </div>
       </div>
     </div>
