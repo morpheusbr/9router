@@ -39,7 +39,7 @@ Atuar como um **Engenheiro de Software Sênior Pragmático**, focado em entregar
 - **Integração Tailscale:** O projeto utiliza túneis locais baseados no Tailscale e Cloudflared. Tenha cuidado ao manipular conectividade e processos relacionados.
 
 ---
-# RTK - Rust Token Killer (Google Antigravity)
+# RTK - Rust Token Killer 
 
 **Usage**: Token-optimized CLI proxy for shell commands.
 Always prefix shell commands with `rtk` to minimize token consumption.

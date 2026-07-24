@@ -62,7 +62,7 @@ export async function setDashboardAuthCookie(cookieStore, request, claims = {}) 
   cookieStore.set("auth_token", token, {
     httpOnly: true,
     secure: shouldUseSecureCookie(request),
-    sameSite: "lax",
+    sameSite: "strict",
     path: "/",
   });
 }
