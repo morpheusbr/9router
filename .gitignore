@@ -86,3 +86,12 @@ graphify-out/*
 .codegraph/
 .PR/
 .next-analyze/*
+.9router/
+
+# Databases and Secrets
+*.sqlite
+*.sqlite3
+*.db
+*.key
+*.cert
+*.crt

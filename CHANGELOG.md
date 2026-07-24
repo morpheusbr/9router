@@ -25,7 +25,7 @@
 - **CLI tools**: Grok Build setup — choose separate main/general-purpose/explore/plan models and preserve each model's context window
 - **GitHub Copilot**: route Claude models through Copilot's native `/v1/messages`
 - **Kiro**: add GPT-5.6 model family (#2596)
-- **RTK**: `X-9Router-Token-Saver` header to bypass token savers per request
+- **RTK**: `X-HiperRouter-Token-Saver` header to bypass token savers per request
 - **Providers**: quota visibility settings
 - **Translator**: drop temperature for all Claude models
 - **i18n**: Thai (th) + Persian (fa) translations / README
@@ -275,7 +275,7 @@
 - Dashboard: show provider node name instead of connection name in topology (#1770) + show explicit `kind="llm"` combos on combos page (#1684)
 
 ## Docs
-- README: add Indonesian 9Router tutorial video (#1709)
+- README: add Indonesian HiperRouter tutorial video (#1709)
 
 # v0.4.71 (2026-06-06)
 

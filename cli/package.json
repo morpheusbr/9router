@@ -1,7 +1,7 @@
 {
   "name": "9router",
   "version": "0.5.40",
-  "description": "9Router CLI - Start and manage 9Router server",
+  "description": "HiperRouter CLI - Start and manage HiperRouter server",
   "bin": {
     "9router": "./cli.js"
   },
