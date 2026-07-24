@@ -9,8 +9,36 @@ import {
 import { APIKEY_PROVIDERS } from "@/shared/constants/config";
 import { AI_PROVIDERS, FREE_TIER_PROVIDERS, WEB_COOKIE_PROVIDERS, isOpenAICompatibleProvider, isAnthropicCompatibleProvider, isCustomEmbeddingProvider } from "@/shared/constants/providers";
 import { normalizeProviderId, normalizeProviderSpecificData } from "@/lib/providerNormalization";
+import { z } from "zod";
+import { withBodyValidation } from "@/lib/api/withValidation";
+import { safeUrlSchema } from "@/shared/validators/zodSchemas";
 
 export const dynamic = "force-dynamic";
+
+const ProviderConnectionSchema = z.object({
+  provider: z.string().min(1, "Provider is required").trim(),
+  apiKey: z.string().optional(),
+  name: z.string().optional(),
+  displayName: z.string().optional(),
+  priority: z.number().int().min(1).optional(),
+  globalPriority: z.number().int().min(1).optional().nullable(),
+  defaultModel: z.string().optional().nullable(),
+  testStatus: z.string().optional(),
+  proxyPoolId: z.string().optional().nullable(),
+  connectionProxyEnabled: z.boolean().optional(),
+  connectionProxyUrl: z.union([safeUrlSchema, z.literal(""), z.string().trim().length(0)]).optional(),
+  connectionNoProxy: z.string().optional(),
+  providerSpecificData: z.record(z.any()).optional(),
+}).superRefine((data, ctx) => {
+  if (data.connectionProxyEnabled && (!data.connectionProxyUrl || data.connectionProxyUrl.trim() === "")) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "Connection proxy URL is required when connection proxy is enabled",
+      path: ["connectionProxyUrl"]
+    });
+  }
+});
+
 
 function normalizeProxyConfig(body = {}) {
   const enabled = body?.connectionProxyEnabled === true;
@@ -84,15 +112,18 @@ export async function GET() {
 }
 
 // POST /api/providers - Create new connection (API Key only, OAuth via separate flow)
-export async function POST(request) {
+export const POST = withBodyValidation(ProviderConnectionSchema, async (request, body) => {
   try {
-    const body = await request.json();
-    const provider = normalizeProviderId(body.provider);
+    const rawProvider = normalizeProviderId(body.provider);
     const { apiKey, name, displayName, priority, globalPriority, defaultModel, testStatus } = body;
-    const proxyConfig = normalizeProxyConfig(body);
-    if (proxyConfig.error) {
-      return NextResponse.json({ error: proxyConfig.error }, { status: 400 });
-    }
+    const provider = rawProvider;
+    
+    // We already validated this through Zod superRefine, but we map it to standard obj
+    const proxyConfig = {
+      connectionProxyEnabled: body.connectionProxyEnabled || false,
+      connectionProxyUrl: body.connectionProxyUrl || "",
+      connectionNoProxy: body.connectionNoProxy || "",
+    };
 
     const proxyPoolResult = await normalizeProxyPoolId(body.proxyPoolId);
     if (proxyPoolResult.error) {
@@ -194,4 +225,4 @@ export async function POST(request) {
     console.log("Error creating provider:", error);
     return NextResponse.json({ error: "Failed to create provider" }, { status: 500 });
   }
-}
+});

@@ -3,6 +3,9 @@ import { getSettings, updateSettings } from "@/lib/localDb";
 import { applyOutboundProxyEnv } from "@/lib/network/outboundProxy";
 import { resetComboRotation } from "open-sse/services/combo.js";
 import bcrypt from "bcryptjs";
+import { z } from "zod";
+import { withBodyValidation } from "@/lib/api/withValidation";
+import { safeUrlSchema } from "@/shared/validators/zodSchemas";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -13,6 +16,23 @@ const SETTINGS_RESPONSE_HEADERS = {
 
 // Secrets must never be mass-assigned from request body (CWE-915)
 const PROTECTED_SETTING_KEYS = ["password", "mitmSudoEncrypted"];
+
+const SettingsPatchSchema = z.object({
+  newPassword: z.string().optional(),
+  currentPassword: z.string().optional(),
+  oidcClientSecret: z.string().optional(),
+  oidcIssuerUrl: z.union([safeUrlSchema, z.literal(""), z.string().trim().length(0)]).optional(),
+  oidcClientId: z.string().optional(),
+  outboundProxyEnabled: z.boolean().optional(),
+  outboundProxyUrl: z.union([safeUrlSchema, z.literal(""), z.string().trim().length(0)]).optional(),
+  outboundNoProxy: z.string().optional(),
+  comboStrategy: z.string().optional(),
+  comboStickyRoundRobinLimit: z.number().optional(),
+  comboStrategies: z.record(z.any()).optional(),
+  claudeAutoPing: z.boolean().optional(),
+  codexAutoPing: z.boolean().optional(),
+}).passthrough();
+
 
 export async function GET() {
   try {
@@ -35,11 +55,9 @@ export async function GET() {
   }
 }
 
-export async function PATCH(request) {
+export const PATCH = withBodyValidation(SettingsPatchSchema, async (request, body) => {
   try {
-    const body = await request.json();
-
-    // Strip protected secrets before any internal handling sets them
+    // Strip protected secrets before any internal handling sets them (since schema uses passthrough)
     for (const key of PROTECTED_SETTING_KEYS) delete body[key];
 
     // If updating password, hash it
@@ -58,7 +76,6 @@ export async function PATCH(request) {
         }
       } else {
         // First time setting password, no current password needed
-        // Allow empty currentPassword or default "123456"
         if (body.currentPassword && body.currentPassword !== "123456") {
            return NextResponse.json({ error: "Invalid current password" }, { status: 401 });
         }
@@ -100,7 +117,6 @@ export async function PATCH(request) {
       Object.prototype.hasOwnProperty.call(body, "claudeAutoPing") ||
       Object.prototype.hasOwnProperty.call(body, "codexAutoPing")
     ) {
-      // Keep the scheduler absent when no account opted in; load its provider graph only on demand.
       import("@/shared/services/quotaAutoPing")
         .then(({ configureQuotaAutoPing }) => {
           configureQuotaAutoPing(settings);
@@ -115,4 +131,4 @@ export async function PATCH(request) {
     console.log("Error updating settings:", error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
-}
+});
