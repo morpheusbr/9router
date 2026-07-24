@@ -1,4 +1,4 @@
-# 9Router - FREE AI Router & Token Saver
+# HiperRouter - FREE AI Router & Token Saver
 
 **Never stop coding. Save 20-40% tokens with RTK + auto-fallback to FREE & cheap AI models.**
 
@@ -16,7 +16,7 @@
 
 ---
 
-## 🤔 Why 9Router?
+## 🤔 Why HiperRouter?
 
 **Stop wasting money, tokens and hitting limits:**
 
@@ -25,7 +25,7 @@
 - ❌ Tool outputs (git diff, grep, ls...) burn tokens fast
 - ❌ Expensive APIs ($20-50/month per provider)
 
-**9Router solves this:**
+**HiperRouter solves this:**
 
 - ✅ **RTK Token Saver** - Auto-compress tool_result, save 20-40% tokens
 - ✅ **Maximize subscriptions** - Track quota, use every bit before reset

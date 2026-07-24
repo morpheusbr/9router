@@ -81,7 +81,7 @@ function copyRecursive(src, dest) {
   }
 }
 
-console.log("📦 Building 9Router CLI package with Next.js...\n");
+console.log("📦 Building HiperRouter CLI package with Next.js...\n");
 
 fs.mkdirSync(buildHomeDir, { recursive: true });
 fs.mkdirSync(path.join(buildHomeDir, "AppData", "Roaming"), { recursive: true });
@@ -178,8 +178,8 @@ console.log("3️⃣ b Configuring SQLite drivers...");
 function ensureModuleInBundle(pkg) {
   const dest = path.join(cliAppDir, "node_modules", pkg);
   if (fs.existsSync(dest)) {
-    console.log(`✅ ${pkg} already bundled`);
-    return;
+    console.log(`🧹 Cleaning incomplete standalone trace for ${pkg}...`);
+    fs.rmSync(dest, { recursive: true, force: true });
   }
   const candidates = [
     path.join(appDir, "node_modules", pkg),

@@ -118,6 +118,44 @@ function processElement(element) {
   
   // Process collected nodes
   nodesToProcess.forEach(processTextNode);
+
+  // Process attributes (placeholder, title)
+  if (element.querySelectorAll) {
+    const elementsWithAttrs = element.querySelectorAll('[placeholder], [title]');
+    const elementsToProcess = [...elementsWithAttrs];
+    
+    // Also include the root element if it has the attributes
+    if (element.hasAttribute && (element.hasAttribute('placeholder') || element.hasAttribute('title'))) {
+      elementsToProcess.push(element);
+    }
+    
+    elementsToProcess.forEach(el => {
+      // Skip if data-i18n-skip is present on element or ancestors
+      let parent = el;
+      let skip = false;
+      while (parent) {
+        if (parent.hasAttribute && parent.hasAttribute('data-i18n-skip')) {
+          skip = true;
+          break;
+        }
+        parent = parent.parentElement;
+      }
+      if (skip) return;
+      
+      ['placeholder', 'title'].forEach(attr => {
+        if (el.hasAttribute(attr)) {
+          const originalKey = `_original_${attr}`;
+          if (!el[originalKey]) {
+            el[originalKey] = el.getAttribute(attr);
+          }
+          const translated = translate(el[originalKey]);
+          if (translated !== el.getAttribute(attr)) {
+            el.setAttribute(attr, translated);
+          }
+        }
+      });
+    });
+  }
 }
 
 // Initialize runtime i18n
