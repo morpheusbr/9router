@@ -12,7 +12,8 @@
 
 # testing
 /coverage
-
+graphify-out/
+AGENTS.md
 # next.js
 /.next/
 /.next-cli-build/

@@ -1,11 +1,12 @@
 import { v4 as uuidv4 } from "uuid";
 import { getAdapter } from "../driver.js";
+import { encryptSecret, decryptSecret } from "../helpers/crypto.js";
 
 function rowToKey(row) {
   if (!row) return null;
   return {
     id: row.id,
-    key: row.key,
+    key: decryptSecret(row.key),
     name: row.name,
     machineId: row.machineId,
     isActive: row.isActive === 1 || row.isActive === true,
@@ -40,7 +41,7 @@ export async function createApiKey(name, machineId) {
   };
   db.run(
     `INSERT INTO apiKeys(id, key, name, machineId, isActive, createdAt) VALUES(?, ?, ?, ?, ?, ?)`,
-    [apiKey.id, apiKey.key, apiKey.name, apiKey.machineId, 1, apiKey.createdAt]
+    [apiKey.id, encryptSecret(apiKey.key), apiKey.name, apiKey.machineId, 1, apiKey.createdAt]
   );
   return apiKey;
 }
@@ -54,7 +55,7 @@ export async function updateApiKey(id, data) {
     const merged = { ...rowToKey(row), ...data };
     db.run(
       `UPDATE apiKeys SET key = ?, name = ?, machineId = ?, isActive = ? WHERE id = ?`,
-      [merged.key, merged.name, merged.machineId, merged.isActive ? 1 : 0, id]
+      [encryptSecret(merged.key), merged.name, merged.machineId, merged.isActive ? 1 : 0, id]
     );
     result = merged;
   });
@@ -69,7 +70,8 @@ export async function deleteApiKey(id) {
 
 export async function validateApiKey(key) {
   const db = await getAdapter();
-  const row = db.get(`SELECT isActive FROM apiKeys WHERE key = ?`, [key]);
+  const rows = db.all(`SELECT key, isActive FROM apiKeys`);
+  const row = rows.find(r => decryptSecret(r.key) === key);
   if (!row) return false;
   return row.isActive === 1 || row.isActive === true;
 }
