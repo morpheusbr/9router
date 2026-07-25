@@ -20,9 +20,12 @@ if (typeof setInterval !== "undefined") {
  * Validates if the given request should be rate-limited.
  * Applies exponential backoff for repeat offenders.
  * @param {string} clientKey - Unique identifier for the client (IP or API Key)
+ * @param {boolean} isInternalCli - Whether the request comes from the internal CLI
  * @returns {Object} { allowed: boolean, retryAfter: number, message: string }
  */
-export function checkRateLimit(clientKey) {
+export function checkRateLimit(clientKey, isInternalCli = false) {
+  if (isInternalCli) return { allowed: true };
+
   const now = Date.now();
 
   if (!store.has(clientKey)) {

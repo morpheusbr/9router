@@ -31,9 +31,10 @@ export async function POST(request) {
   // Apply Rate Limiting & Exponential Backoff
   const authHeader = request.headers.get("authorization") || "";
   const ip = request.headers.get("x-forwarded-for") || "127.0.0.1";
+  const isInternalCli = request.headers.get("x-hiperrouter-cli") === "true";
   const clientKey = authHeader ? authHeader : ip;
   
-  const rl = checkRateLimit(clientKey);
+  const rl = checkRateLimit(clientKey, isInternalCli);
   if (!rl.allowed) {
     return new Response(JSON.stringify({
       error: {
