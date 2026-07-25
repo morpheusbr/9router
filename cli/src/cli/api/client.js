@@ -499,6 +499,7 @@ async function disableTunnel() {
 
 module.exports = {
   configure,
+  makeRequest,
   
   // Providers
   getProviders,

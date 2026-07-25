@@ -262,13 +262,21 @@ código novo (linhas que vão entrar)
     while (aiThinking) {
       aiThinking = false;
       try {
-        process.stdout.write(`${COLORS.cyan}IA: ${COLORS.reset}`);
+        const frames = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
+        let spinnerFrame = 0;
+        const spinner = setInterval(() => {
+          process.stdout.write(`\r${COLORS.cyan}IA: ${COLORS.reset}${frames[spinnerFrame++ % frames.length]} Pensando...`);
+        }, 80);
         
         const response = await fetch(`http://localhost:${port}/v1/chat/completions`, {
           method: "POST",
           headers: { "Content-Type": "application/json", "Authorization": `Bearer ${apiKey}` },
           body: JSON.stringify({ model: model, messages: messages, stream: true })
         });
+
+        clearInterval(spinner);
+        // Clean up the spinner text but keep the "IA: " prefix
+        process.stdout.write(`\r${COLORS.cyan}IA: ${COLORS.reset}\x1b[K`);
 
         if (!response.ok) {
           console.log(`${COLORS.red}Erro API: ${response.status} ${response.statusText}${COLORS.reset}`);
@@ -347,24 +355,24 @@ código novo (linhas que vão entrar)
           }
         }
 
-        // --- XML Tool Call Fallback (Suporte para modelos que forçam XML) ---
-        const xmlToolMatches = [...aiFullMessage.matchAll(/<tool_call>[\s\S]*?<function=([^>]+)>([\s\S]*?)<\/function>[\s\S]*?<\/tool_call>/g)];
+        // --- XML Tool Call Fallback (Suporte flexível para function name="") ---
+        const xmlToolMatches = [...aiFullMessage.matchAll(/<tool_call>[\s\S]*?<function[\s=]+(?:name=)?"?([^>"]+)"?>([\s\S]*?)<\/function>[\s\S]*?<\/tool_call>/g)];
         for (const match of xmlToolMatches) {
           const funcName = match[1].trim();
           const paramsBlock = match[2];
           let cmd = "";
           
           if (funcName === "bash") {
-            const cmdMatch = paramsBlock.match(/<parameter=command>([\s\S]*?)<\/parameter>/);
+            const cmdMatch = paramsBlock.match(/<parameter[^>]*?command[^>]*?>([\s\S]*?)<\/parameter>/i);
             if (cmdMatch) cmd = cmdMatch[1].trim();
           } else if (funcName === "grep") {
-            const patternMatch = paramsBlock.match(/<parameter=pattern>([\s\S]*?)<\/parameter>/);
-            const pathMatch = paramsBlock.match(/<parameter=path>([\s\S]*?)<\/parameter>/);
+            const patternMatch = paramsBlock.match(/<parameter[^>]*?pattern[^>]*?>([\s\S]*?)<\/parameter>/i);
+            const pathMatch = paramsBlock.match(/<parameter[^>]*?path[^>]*?>([\s\S]*?)<\/parameter>/i);
             if (patternMatch && pathMatch) {
               cmd = `rtk grep -in "${patternMatch[1].trim()}" ${pathMatch[1].trim()}`;
             }
           } else if (funcName === "query-graph") {
-            const qMatch = paramsBlock.match(/<parameter=question>([\s\S]*?)<\/parameter>/);
+            const qMatch = paramsBlock.match(/<parameter[^>]*?question[^>]*?>([\s\S]*?)<\/parameter>/i);
             if (qMatch) cmd = `rtk graphify query "${qMatch[1].trim()}"`;
           }
 
@@ -376,24 +384,70 @@ código novo (linhas que vão entrar)
                 if (t && !t.startsWith('#') && !t.startsWith('rtk ')) return 'rtk ' + t;
                 return line;
               }).join('\n');
-              console.log(`\n${COLORS.green}Executando Tool Call: \n${finalCmd}${COLORS.reset}`);
+              console.log(`\n${COLORS.green}Executando: \n${finalCmd}${COLORS.reset}`);
+              
+              // Push assistant's action FIRST before the result!
+              messages.push({ role: "assistant", content: aiFullMessage });
+              
               try {
                 const output = execSync(finalCmd, { encoding: "utf8", stdio: ["inherit", "pipe", "pipe"] });
                 console.log(output);
-                messages.push({ role: "system", content: `Resultado do tool call (${funcName}):\n\`\`\`\n${output.substring(0, 50000)}\n\`\`\`\nContinue.` });
+                messages.push({ role: "system", content: `Resultado:\n\`\`\`\n${output.substring(0, 50000)}\n\`\`\`\nContinue.` });
                 aiThinking = true; break;
               } catch (err) {
                 const errorLog = (err.stderr || err.stdout || err.message).toString();
                 console.log(`${COLORS.red}Erro:\n${errorLog}${COLORS.reset}\n`);
-                messages.push({ role: "system", content: `Erro no tool call:\n\`\`\`\n${errorLog}\n\`\`\`\nCorrija se necessário.` });
+                messages.push({ role: "system", content: `Erro:\n\`\`\`\n${errorLog}\n\`\`\`\nCorrija se necessário.` });
                 aiThinking = true; break;
+              }
+            }
+          } else {
+            // Se a função for desconhecida, avisa o modelo para tentar de novo com bash!
+            console.log(`\n${COLORS.red}⚠️ IA tentou usar ferramenta inexistente: ${funcName}${COLORS.reset}`);
+            messages.push({ role: "assistant", content: aiFullMessage });
+            messages.push({ role: "system", content: `Erro: A função '${funcName}' não existe no God Mode. Você DEVE usar um bloco markdown \`\`\`bash\`\`\` para rodar comandos como 'rtk cat', 'rtk sed', etc.` });
+            aiThinking = true; break;
+          }
+        }
+
+        // --- Markdown Bash Fallback (God Mode System Prompt compliance) ---
+        if (!aiThinking) {
+          const bashMatches = [...aiFullMessage.matchAll(/```bash\n([\s\S]*?)```/g)];
+          for (const match of bashMatches) {
+            const cmd = match[1].trim();
+            if (cmd && !aiFullMessage.includes('<tool_call>')) {
+              const shouldRun = await confirmWithAuto(`\n${COLORS.yellow}Permitir Execução de Bash?\n${COLORS.dim}${cmd}${COLORS.reset}`, cmd);
+              if (shouldRun) {
+                const finalCmd = cmd.split('\n').map(line => {
+                  const t = line.trim();
+                  if (t && !t.startsWith('#') && !t.startsWith('rtk ')) return 'rtk ' + t;
+                  return line;
+                }).join('\n');
+                console.log(`\n${COLORS.green}Executando Bash: \n${finalCmd}${COLORS.reset}`);
+                
+                messages.push({ role: "assistant", content: aiFullMessage });
+                
+                try {
+                  const output = execSync(finalCmd, { encoding: "utf8", stdio: ["inherit", "pipe", "pipe"] });
+                  console.log(output);
+                  messages.push({ role: "system", content: `Terminal Output:\n\`\`\`\n${output.substring(0, 50000)}\n\`\`\`\nContinue.` });
+                  aiThinking = true; break;
+                } catch (err) {
+                  const errorLog = (err.stderr || err.stdout || err.message).toString();
+                  console.log(`${COLORS.red}Erro Terminal:\n${errorLog}${COLORS.reset}\n`);
+                  messages.push({ role: "system", content: `Terminal Error:\n\`\`\`\n${errorLog}\n\`\`\`\nAnalise e corrija.` });
+                  aiThinking = true; break;
+                }
               }
             }
           }
         }
 
         console.log("\n");
-        messages.push({ role: "assistant", content: aiFullMessage });
+        // Somente faz push se não tivermos feito push dentro da execução (aiThinking == false)
+        if (!aiThinking) {
+          messages.push({ role: "assistant", content: aiFullMessage });
+        }
         try { fs.writeFileSync(historyFile, JSON.stringify(messages, null, 2)); } catch(e) {}
 
         // --- Autonomous Loop: Auto-Discovery (Grep) ---
