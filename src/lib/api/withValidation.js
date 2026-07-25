@@ -28,7 +28,8 @@ export const withBodyValidation = (schema, handler) => {
     } catch (error) {
       if (error instanceof ZodError) {
         // Format the Zod error for the frontend
-        const errorMessages = error.errors.map(err => {
+        const issues = error.issues || error.errors || [];
+        const errorMessages = issues.map(err => {
           const path = err.path.join(".");
           return path ? `${path}: ${err.message}` : err.message;
         });

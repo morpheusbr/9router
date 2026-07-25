@@ -1,4 +1,7 @@
 import { NextResponse } from "next/server";
+import { z } from "zod";
+import { withBodyValidation } from "@/lib/api/withValidation";
+import { safeUrlSchema } from "@/shared/validators/zodSchemas";
 import {
   getProviderConnectionById,
   getProxyPoolById,
@@ -83,11 +86,35 @@ export async function GET(request, { params }) {
   }
 }
 
+const ProviderConnectionUpdateSchema = z.object({
+  name: z.string().optional(),
+  priority: z.number().int().min(1).optional(),
+  globalPriority: z.number().int().min(1).optional().nullable(),
+  defaultModel: z.string().optional().nullable(),
+  isActive: z.boolean().optional(),
+  apiKey: z.string().optional(),
+  testStatus: z.string().optional(),
+  lastError: z.string().optional().nullable(),
+  lastErrorAt: z.union([z.string(), z.number()]).optional().nullable(),
+  providerSpecificData: z.record(z.any()).optional(),
+  proxyPoolId: z.string().optional().nullable(),
+  connectionProxyEnabled: z.boolean().optional(),
+  connectionProxyUrl: z.union([safeUrlSchema, z.literal(""), z.string().trim().length(0)]).optional(),
+  connectionNoProxy: z.string().optional(),
+}).superRefine((data, ctx) => {
+  if (data.connectionProxyEnabled && (!data.connectionProxyUrl || data.connectionProxyUrl.trim() === "")) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "Connection proxy URL is required when connection proxy is enabled",
+      path: ["connectionProxyUrl"]
+    });
+  }
+});
+
 // PUT /api/providers/[id] - Update connection
-export async function PUT(request, { params }) {
+export const PUT = withBodyValidation(ProviderConnectionUpdateSchema, async (request, body, { params }) => {
   try {
     const { id } = await params;
-    const body = await request.json();
     const {
       name,
       priority,
@@ -106,10 +133,13 @@ export async function PUT(request, { params }) {
       return NextResponse.json({ error: "Connection not found" }, { status: 404 });
     }
 
-    const proxyConfig = normalizeProxyConfig(body);
-    if (proxyConfig.error) {
-      return NextResponse.json({ error: proxyConfig.error }, { status: 400 });
-    }
+    // Since we validated with Zod, we format the proxy config easily
+    const proxyConfig = {
+      hasAnyProxyField: body.connectionProxyEnabled !== undefined || body.connectionProxyUrl !== undefined || body.connectionNoProxy !== undefined,
+      connectionProxyEnabled: body.connectionProxyEnabled || false,
+      connectionProxyUrl: body.connectionProxyUrl || "",
+      connectionNoProxy: body.connectionNoProxy || "",
+    };
 
     const proxyPoolResult = await normalizeProxyPoolUpdate(body.proxyPoolId);
     if (proxyPoolResult.error) {
@@ -169,7 +199,7 @@ export async function PUT(request, { params }) {
     console.log("Error updating connection:", error);
     return NextResponse.json({ error: "Failed to update connection" }, { status: 500 });
   }
-}
+});
 
 // DELETE /api/providers/[id] - Delete connection
 export async function DELETE(request, { params }) {

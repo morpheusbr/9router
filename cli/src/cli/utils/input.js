@@ -6,6 +6,7 @@ const COLORS = {
   dim: "\x1b[2m",
   underline: "\x1b[4m",
   reverse: "\x1b[7m",
+  red: "\x1b[31m",
   cyan: "\x1b[36m",
   green: "\x1b[32m",
   yellow: "\x1b[33m",
