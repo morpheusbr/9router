@@ -8,15 +8,15 @@ const { ensureTrayRuntime } = require("./trayRuntime");
 
 try {
   ensureSqliteRuntime({ silent: false });
-  console.log("[9router] runtime SQLite deps ready");
+  console.log("[HiperRouter] runtime SQLite deps ready");
 } catch (e) {
-  console.warn(`[9router] runtime warm-up skipped: ${e.message}`);
+  console.warn(`[HiperRouter] runtime warm-up skipped: ${e.message}`);
 }
 
 try {
   ensureTrayRuntime({ silent: false });
 } catch (e) {
-  console.warn(`[9router] tray runtime skipped: ${e.message}`);
+  console.warn(`[HiperRouter] tray runtime skipped: ${e.message}`);
 }
 
 process.exit(0);

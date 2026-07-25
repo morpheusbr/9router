@@ -79,6 +79,14 @@ async function startTerminalUI(port) {
     headerContent: () => getHeader(port),
     items: [
       {
+        label: "Chat (Interactive)",
+        action: async () => {
+          const { startChatUI } = require("./chatUI");
+          await startChatUI(port);
+          return true; // Continue
+        }
+      },
+      {
         label: "Providers",
         action: async () => {
           await showProvidersMenu([...basePath, "Providers"]);

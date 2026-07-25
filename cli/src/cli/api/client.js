@@ -19,10 +19,13 @@ const APP_NAME = "9router";
 
 function getDataDir() {
   if (process.env.DATA_DIR) return process.env.DATA_DIR;
-  if (process.platform === "win32") {
-    return path.join(process.env.APPDATA || path.join(os.homedir(), "AppData", "Roaming"), APP_NAME);
-  }
-  return path.join(os.homedir(), `.${APP_NAME}`);
+  
+  // Check for local .9router in case server runs with custom HOME in PM2
+  const cwdDir = path.join(process.cwd(), '.9router');
+  if (fs.existsSync(cwdDir)) return cwdDir;
+  
+  // Force local directory instead of global
+  return path.resolve(__dirname, "../../../..", ".9router");
 }
 
 const MACHINE_ID_FILE = path.join(getDataDir(), "machine-id");
