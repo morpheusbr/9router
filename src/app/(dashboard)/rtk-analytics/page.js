@@ -188,7 +188,7 @@ export default function RtkAnalyticsPage() {
                 
                 {/* Mini progress bar */}
                 <div className="w-full bg-white/5 h-1.5 rounded-full mt-3 overflow-hidden">
-                  <div className="h-full bg-gradient-to-r from-purple-500 to-cyan-500" style={{ width: \`\${Math.min(100, cmd.avg_pct)}%\` }}></div>
+                  <div className="h-full bg-gradient-to-r from-purple-500 to-cyan-500" style={{ width: `${Math.min(100, cmd.avg_pct)}%` }}></div>
                 </div>
               </div>
             ))}

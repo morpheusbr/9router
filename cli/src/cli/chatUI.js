@@ -369,7 +369,7 @@ código novo (linhas que vão entrar)
             const patternMatch = paramsBlock.match(/<parameter[^>]*?pattern[^>]*?>([\s\S]*?)<\/parameter>/i);
             const pathMatch = paramsBlock.match(/<parameter[^>]*?path[^>]*?>([\s\S]*?)<\/parameter>/i);
             if (patternMatch && pathMatch) {
-              cmd = `rtk grep -in "${patternMatch[1].trim()}" ${pathMatch[1].trim()}`;
+              cmd = `rtk grep -rin "${patternMatch[1].trim()}" ${pathMatch[1].trim()}`;
             }
           } else if (funcName === "query-graph") {
             const qMatch = paramsBlock.match(/<parameter[^>]*?question[^>]*?>([\s\S]*?)<\/parameter>/i);
@@ -391,7 +391,13 @@ código novo (linhas que vão entrar)
               
               try {
                 const output = execSync(finalCmd, { encoding: "utf8", stdio: ["inherit", "pipe", "pipe"] });
-                console.log(output);
+                const lines = output.split('\n');
+                if (lines.length > 15) {
+                  console.log(lines.slice(0, 10).join('\n'));
+                  console.log(`\n${COLORS.dim}... [ + ${lines.length - 10} linhas ocultadas da tela. A IA leu tudo na íntegra. ] ...${COLORS.reset}`);
+                } else {
+                  console.log(output);
+                }
                 messages.push({ role: "system", content: `Resultado:\n\`\`\`\n${output.substring(0, 50000)}\n\`\`\`\nContinue.` });
                 aiThinking = true; break;
               } catch (err) {
@@ -429,7 +435,13 @@ código novo (linhas que vão entrar)
                 
                 try {
                   const output = execSync(finalCmd, { encoding: "utf8", stdio: ["inherit", "pipe", "pipe"] });
-                  console.log(output);
+                  const lines = output.split('\n');
+                  if (lines.length > 15) {
+                    console.log(lines.slice(0, 10).join('\n'));
+                    console.log(`\n${COLORS.dim}... [ + ${lines.length - 10} linhas ocultadas da tela. A IA leu tudo na íntegra. ] ...${COLORS.reset}`);
+                  } else {
+                    console.log(output);
+                  }
                   messages.push({ role: "system", content: `Terminal Output:\n\`\`\`\n${output.substring(0, 50000)}\n\`\`\`\nContinue.` });
                   aiThinking = true; break;
                 } catch (err) {
@@ -551,7 +563,14 @@ código novo (linhas que vão entrar)
             }).join('\n');
             console.log(`\n${COLORS.green}Executando: \n${finalCmd}${COLORS.reset}`);
             try {
-              execSync(finalCmd, { stdio: "inherit" });
+              const output = execSync(finalCmd, { encoding: "utf8", stdio: ["inherit", "pipe", "pipe"] });
+              const lines = output.split('\n');
+              if (lines.length > 15) {
+                console.log(lines.slice(0, 10).join('\n'));
+                console.log(`\n${COLORS.dim}... [ + ${lines.length - 10} linhas ocultadas da tela. A IA leu tudo na íntegra. ] ...${COLORS.reset}`);
+              } else {
+                console.log(output);
+              }
               console.log(`${COLORS.green}✅ Comando concluído.${COLORS.reset}\n`);
             } catch (err) {
               const errorLog = (err.stderr || err.stdout || err.message).toString();

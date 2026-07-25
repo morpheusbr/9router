@@ -1,4 +1,5 @@
 import { handleChat } from "@/sse/handlers/chat.js";
+import { checkRateLimit } from "@/lib/network/rateLimiter";
 import { initTranslators } from "open-sse/translator/index.js";
 
 let initialized = false;
@@ -27,6 +28,28 @@ export async function OPTIONS() {
 }
 
 export async function POST(request) {  
+  // Apply Rate Limiting & Exponential Backoff
+  const authHeader = request.headers.get("authorization") || "";
+  const ip = request.headers.get("x-forwarded-for") || "127.0.0.1";
+  const clientKey = authHeader ? authHeader : ip;
+  
+  const rl = checkRateLimit(clientKey);
+  if (!rl.allowed) {
+    return new Response(JSON.stringify({
+      error: {
+        message: rl.message,
+        type: "rate_limit_exceeded",
+        code: 429
+      }
+    }), {
+      status: 429,
+      headers: {
+        "Content-Type": "application/json",
+        "Retry-After": rl.retryAfter.toString()
+      }
+    });
+  }
+
   // Fallback to local handling
   await ensureInitialized();
   
