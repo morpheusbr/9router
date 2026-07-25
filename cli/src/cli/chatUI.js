@@ -5,7 +5,7 @@ const autoApprovedCommands = new Set();
 async function confirmWithAuto(question, actionKey) {
   if (autoApprovedCommands.has(actionKey)) return true;
   while (true) {
-    const answer = await prompt(`${question} (y/n/s): `);
+    const answer = await prompt(`${question} (y/n/s/t): `);
     const lower = answer.toLowerCase();
     if (lower === "y" || lower === "yes" || lower === "sim") return true;
     if (lower === "n" || lower === "no" || lower === "nao" || lower === "não") return false;
@@ -13,7 +13,11 @@ async function confirmWithAuto(question, actionKey) {
       autoApprovedCommands.add(actionKey);
       return true;
     }
-    console.log("Responda 'y' (sim), 'n' (não) ou 's' (sempre aprovar esta ação exata).");
+    if (lower === "t" || lower === "texto") {
+      const txt = await prompt(`\x1b[36mDigite o feedback/texto para a IA:\x1b[0m `);
+      return txt;
+    }
+    console.log("Responda 'y' (sim), 'n' (não), 's' (sempre) ou 't' (enviar texto/feedback).");
   }
 }
 const { clearScreen } = require("./utils/display");
@@ -270,7 +274,11 @@ código novo (linhas que vão entrar)
         
         const response = await fetch(`http://localhost:${port}/v1/chat/completions`, {
           method: "POST",
-          headers: { "Content-Type": "application/json", "Authorization": `Bearer ${apiKey}` },
+          headers: { 
+            "Content-Type": "application/json", 
+            "Authorization": `Bearer ${apiKey}`,
+            "x-hiperrouter-cli": "true"
+          },
           body: JSON.stringify({ model: model, messages: messages, stream: true })
         });
 
@@ -290,15 +298,42 @@ código novo (linhas que vão entrar)
         if (response.body) {
           const reader = response.body.getReader();
           const decoder = new TextDecoder("utf-8");
+          let sseBuffer = "";
           while (true) {
             const { done, value } = await reader.read();
-            if (done) break;
-            const chunk = decoder.decode(value, { stream: true });
-            const lines = chunk.split('\n');
-            for (const line of lines) {
+            if (done) {
+              if (sseBuffer) {
+                // process remaining buffer just in case
+                const lines = sseBuffer.split('\n');
+                for (let line of lines) {
+                  line = line.trim();
+                  if (line.startsWith('data: ') && line !== 'data: [DONE]') {
+                    try {
+                      const data = JSON.parse(line.substring(6));
+                      const content = data.choices && data.choices[0] && data.choices[0].delta ? (data.choices[0].delta.content || "") : "";
+                      aiFullMessage += content;
+                      pendingPrint += content;
+                    } catch(e) {}
+                  }
+                }
+              }
+              break;
+            }
+            
+            sseBuffer += decoder.decode(value, { stream: true });
+            const lines = sseBuffer.split('\n');
+            sseBuffer = lines.pop(); // keep the last incomplete line in the buffer
+            
+            for (let line of lines) {
+              line = line.trim();
               if (line.startsWith('data: ') && line !== 'data: [DONE]') {
                 try {
                   const data = JSON.parse(line.substring(6));
+                  if (data.error) {
+                    process.stdout.write(`\n${COLORS.red}Erro Stream: ${data.error.message || JSON.stringify(data.error)}${COLORS.reset}\n`);
+                    aiFullMessage += `[ERRO: ${data.error.message || JSON.stringify(data.error)}]`;
+                    break;
+                  }
                   const content = data.choices[0]?.delta?.content || "";
                   aiFullMessage += content;
                   pendingPrint += content;
@@ -378,7 +413,11 @@ código novo (linhas que vão entrar)
 
           if (cmd) {
             const shouldRun = await confirmWithAuto(`\n${COLORS.yellow}Permitir Tool Call (${funcName})?\n${COLORS.dim}${cmd}${COLORS.reset}`, cmd);
-            if (shouldRun) {
+            if (typeof shouldRun === 'string') {
+              messages.push({ role: "assistant", content: aiFullMessage });
+              messages.push({ role: "user", content: `(O usuário abortou a execução e enviou este feedback: "${shouldRun}")` });
+              aiThinking = true; break;
+            } else if (shouldRun) {
               const finalCmd = cmd.split('\n').map(line => {
                 const t = line.trim();
                 if (t && !t.startsWith('#') && !t.startsWith('rtk ')) return 'rtk ' + t;
@@ -423,7 +462,11 @@ código novo (linhas que vão entrar)
             const cmd = match[1].trim();
             if (cmd && !aiFullMessage.includes('<tool_call>')) {
               const shouldRun = await confirmWithAuto(`\n${COLORS.yellow}Permitir Execução de Bash?\n${COLORS.dim}${cmd}${COLORS.reset}`, cmd);
-              if (shouldRun) {
+              if (typeof shouldRun === 'string') {
+                messages.push({ role: "assistant", content: aiFullMessage });
+                messages.push({ role: "user", content: `(O usuário abortou a execução e enviou este feedback: "${shouldRun}")` });
+                aiThinking = true; break;
+              } else if (shouldRun) {
                 const finalCmd = cmd.split('\n').map(line => {
                   const t = line.trim();
                   if (t && !t.startsWith('#') && !t.startsWith('rtk ')) return 'rtk ' + t;
@@ -516,7 +559,11 @@ código novo (linhas que vão entrar)
           const oldCode = match[2];
           const newCode = match[3];
           const shouldWrite = await confirmWithAuto(`\n${COLORS.yellow}Aplicar Patch Cirúrgico no arquivo '${filePath}'?${COLORS.reset}`, "patch:" + filePath);
-          if (shouldWrite) {
+          if (typeof shouldWrite === 'string') {
+            messages.push({ role: "assistant", content: aiFullMessage });
+            messages.push({ role: "user", content: `(O usuário rejeitou o patch no arquivo '${filePath}' e enviou este feedback: "${shouldWrite}")` });
+            aiThinking = true; break;
+          } else if (shouldWrite) {
             try {
               const fullPath = path.resolve(process.cwd(), filePath);
               let content = fs.readFileSync(fullPath, "utf-8");
@@ -528,6 +575,7 @@ código novo (linhas que vão entrar)
               } else {
                 console.log(`${COLORS.red}⚠️ Falha: O código 'antigo' exato não foi encontrado no arquivo. Verifique indentação.${COLORS.reset}\n`);
               }
+
             } catch(e) { console.log(`${COLORS.red}Erro: ${e.message}${COLORS.reset}`); }
           }
         }
@@ -538,7 +586,11 @@ código novo (linhas que vão entrar)
           const filePath = match[1].trim();
           const fileContent = match[2].trim();
           const shouldWrite = await confirmWithAuto(`\n${COLORS.yellow}Salvar novo arquivo '${filePath}'?${COLORS.reset}`, "file:" + filePath);
-          if (shouldWrite) {
+          if (typeof shouldWrite === 'string') {
+            messages.push({ role: "assistant", content: aiFullMessage });
+            messages.push({ role: "user", content: `(O usuário rejeitou a criação do arquivo '${filePath}' e disse: "${shouldWrite}")` });
+            aiThinking = true; break;
+          } else if (shouldWrite) {
             try {
               const fullPath = path.resolve(process.cwd(), filePath);
               const dir = path.dirname(fullPath);
@@ -555,7 +607,11 @@ código novo (linhas que vão entrar)
         for (const match of bashMatches) {
           const cmd = match[1].trim();
           const shouldRun = await confirmWithAuto(`\n${COLORS.yellow}Executar o comando sugerido acima?\n${COLORS.dim}${cmd}${COLORS.reset}`, cmd);
-          if (shouldRun) {
+          if (typeof shouldRun === 'string') {
+            messages.push({ role: "assistant", content: aiFullMessage });
+            messages.push({ role: "user", content: `(O usuário rejeitou o comando e disse: "${shouldRun}")` });
+            aiThinking = true; break;
+          } else if (shouldRun) {
             const finalCmd = cmd.split('\n').map(line => {
               const t = line.trim();
               if (t && !t.startsWith('#') && !t.startsWith('rtk ')) return 'rtk ' + t;
