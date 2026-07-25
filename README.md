@@ -33,7 +33,7 @@ Nós mantemos a compatibilidade total de proxy para ferramentas como Claude Code
 * `cli/` - Ponto de entrada do God Mode AI Agent (`cli.js`) e todo o shell conversacional.
 * `src/` - Lógica do roteador, proxying e manipulação pesada de backend.
 * `app/` - Aplicação Next.js de Dashboard, compilada via `build-seguro.sh`.
-* `.9router/` - Local do banco de dados (SQLite), contextos isolados e estado das chaves/modelos.
+* `.HiperRouter/` - Local do banco de dados (SQLite), contextos isolados e estado das chaves/modelos.
 
 ---
 

@@ -31,7 +31,7 @@ npm install -g 9router
 **デフォルト設定:**
 - **ダッシュボード**: `http://localhost:3000`
 - **APIエンドポイント**: `http://localhost:20128/v1`
-- **データディレクトリ**: `~/.9router`
+- **データディレクトリ**: `~/.HiperRouter`
 
 ---
 
@@ -128,10 +128,10 @@ source ~/.bashrc
 
 ```bash
 # 権限を確認
-ls -la ~/.9router
+ls -la ~/.HiperRouter
 
 # 権限を修正
-chmod 755 ~/.9router
+chmod 755 ~/.HiperRouter
 ```
 
 ---
@@ -139,7 +139,7 @@ chmod 755 ~/.9router
 ## 📁 データディレクトリ構造
 
 ```
-~/.9router/
+~/.HiperRouter/
 ├── db.json           # メインデータベース (プロバイダー、コンボ、設定)
 ├── logs/             # アプリケーションログ
 └── cache/            # 一時キャッシュファイル
@@ -149,10 +149,10 @@ chmod 755 ~/.9router
 
 ```bash
 # バックアップ
-cp -r ~/.9router ~/.9router.backup
+cp -r ~/.HiperRouter ~/.HiperRouter.backup
 
 # 復元
-cp -r ~/.9router.backup ~/.9router
+cp -r ~/.HiperRouter.backup ~/.HiperRouter
 ```
 
 ---

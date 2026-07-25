@@ -88,9 +88,9 @@ describe("grokBuildConfig", () => {
       },
     });
 
-    expect(result.match(/^\[model\.9router\]$/gm)).toHaveLength(1);
-    expect(result.match(/^\[model\.9router-general-purpose\]$/gm)).toHaveLength(1);
-    expect(result.match(/^\[model\.9router-explore\]$/gm)).toHaveLength(1);
+    expect(result.match(/^\[model\.HiperRouter\]$/gm)).toHaveLength(1);
+    expect(result.match(/^\[model\.HiperRouter-general-purpose\]$/gm)).toHaveLength(1);
+    expect(result.match(/^\[model\.HiperRouter-explore\]$/gm)).toHaveLength(1);
     expect(result.match(/^# 9router-prev-subagent-explore/gm)).toHaveLength(1);
     expect(parseGrokBuildConfig(result).model).toMatchObject({
       model: "cc/claude-opus-4.8",
@@ -115,7 +115,7 @@ describe("grokBuildConfig", () => {
     const parsed = parseGrokBuildConfig(result);
     expect(parsed.subagentMappings.explore).toBe("grok-build");
     expect(parsed.subagentModels.explore).toBeNull();
-    expect(result).not.toContain("[model.9router-explore]");
+    expect(result).not.toContain("[model.HiperRouter-explore]");
     expect(parsed.subagentMappings["general-purpose"]).toBe("9router-general-purpose");
   });
 
@@ -131,7 +131,7 @@ describe("grokBuildConfig", () => {
       explore: "grok-build",
       plan: "grok-4.5",
     });
-    expect(reset).not.toContain("[model.9router-");
+    expect(reset).not.toContain("[model.HiperRouter-");
     expect(reset).not.toContain("9router-prev-");
     expect(reset).toContain("[mcp_servers.example]");
   });

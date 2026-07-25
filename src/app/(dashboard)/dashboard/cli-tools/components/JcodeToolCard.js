@@ -183,7 +183,7 @@ export default function JcodeToolCard({
       ? selectedApiKey
       : (!cloudEnabled ? "sk_9router" : "<API_KEY_FROM_DASHBOARD>");
 
-    const configToml = `[providers.9router]
+    const configToml = `[providers.HiperRouter]
 type = "openai-compatible"
 base_url = "${getEffectiveBaseUrl()}"
 auth = "bearer"
@@ -192,7 +192,7 @@ env_file = "provider-9router.env"
 default_model = "${selectedModel || "cc/claude-opus-4-7"}"
 requires_api_key = true
 
-[[providers.9router.models]]
+[[providers.HiperRouter.models]]
 id = "${selectedModel || "cc/claude-opus-4-7"}"`;
 
     const envContent = `JCODE_9ROUTER_API_KEY="${keyToUse}"`;

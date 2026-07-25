@@ -99,7 +99,7 @@ npm start
 **发生了什么:**
 1. 服务器启动在 `http://localhost:20128`
 2. 仪表盘在浏览器中自动打开
-3. 数据目录创建在 `~/.9router`
+3. 数据目录创建在 `~/.HiperRouter`
 4. API key 自动生成
 
 ### 仪表盘登录
@@ -193,7 +193,7 @@ export JWT_SECRET="your-secure-secret-change-this"
 export INITIAL_PASSWORD="your-password"
 
 # Storage
-export DATA_DIR="~/.9router"
+export DATA_DIR="~/.HiperRouter"
 
 # Server
 export PORT="20128"
@@ -205,11 +205,11 @@ export ENABLE_REQUEST_LOGS="false"
 
 ### 数据目录
 
-**默认位置:** `~/.9router`
+**默认位置:** `~/.HiperRouter`
 
 **内容:**
 ```
-~/.9router/
+~/.HiperRouter/
   ├── db.json           # 数据库(提供商、组合、使用)
   ├── api-keys.json     # API keys
   └── logs/             # 请求日志(若启用)
@@ -407,7 +407,7 @@ docker run -d \
   -p 20128:20128 \
   -e JWT_SECRET="your-secure-secret" \
   -e INITIAL_PASSWORD="your-password" \
-  -v 9router-data:/root/.9router \
+  -v 9router-data:/root/.HiperRouter \
   --name 9router \
   9router/9router:latest
 ```
@@ -450,7 +450,7 @@ npm uninstall -g 9router
 ### 移除数据目录
 
 ```bash
-rm -rf ~/.9router
+rm -rf ~/.HiperRouter
 ```
 
 ### 移除配置

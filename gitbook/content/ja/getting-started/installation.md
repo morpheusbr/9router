@@ -99,7 +99,7 @@ npm start
 **何が起こるか:**
 1. サーバーが `http://localhost:20128` で起動
 2. ダッシュボードが自動的にブラウザで開く
-3. `~/.9router` にデータディレクトリが作成される
+3. `~/.HiperRouter` にデータディレクトリが作成される
 4. APIキーが自動生成される
 
 ### ダッシュボードログイン
@@ -193,7 +193,7 @@ export JWT_SECRET="your-secure-secret-change-this"
 export INITIAL_PASSWORD="your-password"
 
 # ストレージ
-export DATA_DIR="~/.9router"
+export DATA_DIR="~/.HiperRouter"
 
 # サーバー
 export PORT="20128"
@@ -205,11 +205,11 @@ export ENABLE_REQUEST_LOGS="false"
 
 ### データディレクトリ
 
-**デフォルトの場所:** `~/.9router`
+**デフォルトの場所:** `~/.HiperRouter`
 
 **内容:**
 ```
-~/.9router/
+~/.HiperRouter/
   ├── db.json           # データベース (プロバイダー、コンボ、使用量)
   ├── api-keys.json     # APIキー
   └── logs/             # リクエストログ (有効化されている場合)
@@ -407,7 +407,7 @@ docker run -d \
   -p 20128:20128 \
   -e JWT_SECRET="your-secure-secret" \
   -e INITIAL_PASSWORD="your-password" \
-  -v 9router-data:/root/.9router \
+  -v 9router-data:/root/.HiperRouter \
   --name 9router \
   9router/9router:latest
 ```
@@ -450,7 +450,7 @@ npm uninstall -g 9router
 ### データディレクトリを削除
 
 ```bash
-rm -rf ~/.9router
+rm -rf ~/.HiperRouter
 ```
 
 ### 設定を削除

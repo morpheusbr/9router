@@ -194,7 +194,7 @@ export async function POST(request) {
       });
     }
 
-    // Update models.providers.9router with all models
+    // Update models.providers.HiperRouter with all models
     settings.models.providers["9router"] = {
       baseUrl: normalizedBaseUrl,
       apiKey: apiKey || "your_api_key",

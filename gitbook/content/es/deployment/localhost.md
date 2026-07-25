@@ -31,7 +31,7 @@ El dashboard se abrirá automáticamente en tu navegador en `http://localhost:30
 **Configuración por defecto:**
 - **Dashboard**: `http://localhost:3000`
 - **API Endpoint**: `http://localhost:20128/v1`
-- **Directorio de datos**: `~/.9router`
+- **Directorio de datos**: `~/.HiperRouter`
 
 ---
 
@@ -128,10 +128,10 @@ Si el directorio de datos no es accesible:
 
 ```bash
 # Verificar permisos
-ls -la ~/.9router
+ls -la ~/.HiperRouter
 
 # Corregir permisos
-chmod 755 ~/.9router
+chmod 755 ~/.HiperRouter
 ```
 
 ---
@@ -139,7 +139,7 @@ chmod 755 ~/.9router
 ## 📁 Estructura del directorio de datos
 
 ```
-~/.9router/
+~/.HiperRouter/
 ├── db.json           # Main database (providers, combos, settings)
 ├── logs/             # Application logs
 └── cache/            # Temporary cache files
@@ -149,10 +149,10 @@ chmod 755 ~/.9router
 
 ```bash
 # Respaldo
-cp -r ~/.9router ~/.9router.backup
+cp -r ~/.HiperRouter ~/.HiperRouter.backup
 
 # Restaurar
-cp -r ~/.9router.backup ~/.9router
+cp -r ~/.HiperRouter.backup ~/.HiperRouter
 ```
 
 ---
