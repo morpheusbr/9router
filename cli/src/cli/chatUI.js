@@ -234,18 +234,19 @@ async function startChatUI(port) {
 1. TERMINAL: Qualquer sugestão de comando bash DEVE ser prefixada com 'rtk '. Seu CWD é ${process.cwd()}.
 2. AUTO-DISCOVERY: Use <grep search="termo" /> sozinho se precisar buscar código. O sistema fará a busca.
 3. WEB-SURFING: Para ler uma URL/doc na web, use <fetch url="https://..." /> sozinho. O sistema fará o download.
-4. SMART PATCH: Para editar um arquivo existente, NÃO REESCREVA O ARQUIVO TODO. Use edição cirúrgica:
+4. NUNCA ALUCINE BUGS: Você NÃO PODE inventar erros de código sem antes ler os arquivos REAIS usando o terminal (ex: \`\`\`bash\nrtk cat caminho/arquivo.js\n\`\`\`). Sempre valide se o bug existe antes de aplicar um patch.
+5. SMART PATCH: Para editar um arquivo existente, NUNCA use bash (sed/echo/cat) nem reescreva o arquivo inteiro. Use estritamente este bloco de edição cirúrgica:
 <patch path="caminho/arquivo.js">
 <<<<
-código antigo exato (linhas que vão ser removidas)
+código antigo exato (incluindo espaços e quebras de linha exatas a serem removidas)
 ====
-código novo (linhas que vão entrar)
+código novo (o que vai entrar no lugar)
 >>>>
 </patch>
-5. AUTO-WRITE: Apenas para criar arquivos NOVOS, use <file path="caminho/arquivo.js">conteúdo completo</file>.
-6. SCRIPTS TEMPORÁRIOS: Crie scripts temporários APENAS na pasta 'scripts/'. Nos blocos de comando bash, obrigatoriamente inclua a exclusão do script após o uso (ex: rtk node scripts/temp.js && rtk rm scripts/temp.js).
-7. GRAPHIFY: Para consultar o grafo, NUNCA invente tags XML como <tool_call>. Use APENAS o terminal: \`\`\`bash\nrtk graphify query "sua pergunta"\n\`\`\`
-8. ZERO XML: A interface final será exibida para humanos. É ESTRITAMENTE PROIBIDO gerar blocos <tool_call> ou <function>. Sempre que precisar de terminal, escreva de forma amigável e use EXCLUSIVAMENTE blocos markdown (ex: \`\`\`bash\ncomando\n\`\`\`).`;
+6. AUTO-WRITE: Apenas para criar arquivos NOVOS DO ZERO, use <file path="caminho/arquivo.js">conteúdo completo</file>. NUNCA coloque blocos <<<< ==== >>>> dentro da tag <file>.
+7. SCRIPTS TEMPORÁRIOS: Crie scripts temporários APENAS na pasta 'scripts/'. Nos blocos de comando bash, obrigatoriamente inclua a exclusão do script após o uso (ex: rtk node scripts/temp.js && rtk rm scripts/temp.js).
+8. GRAPHIFY: Para consultar o grafo, NUNCA invente tags XML como <tool_call>. Use APENAS o terminal: \`\`\`bash\nrtk graphify query "sua pergunta"\n\`\`\`
+9. ZERO XML INVENTADO: A interface final será exibida para humanos. É ESTRITAMENTE PROIBIDO gerar blocos <tool_call> ou <function>. Sempre que precisar do terminal, use blocos markdown puros (ex: \`\`\`bash\ncomando\n\`\`\`).`;
 
     const sysMsg = { role: "system", content: systemPrompt + godModeRules };
     
