@@ -11,7 +11,7 @@ const SQL_JS_VERSION = "1.14.1";
 
 function getDataDir() {
   if (process.env.DATA_DIR) return process.env.DATA_DIR;
-  return path.resolve(__dirname, "../..", ".9router");
+  return path.resolve(__dirname, "../..", ".HiperRouter");
 }
 
 function getRuntimeDir() {

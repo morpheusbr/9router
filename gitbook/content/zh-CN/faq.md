@@ -235,7 +235,7 @@ npm run deploy:cloudflare
 
 **环境变量:**
 - `JWT_SECRET` - **生产环境必须修改!**
-- `DATA_DIR` - 数据库存储路径(默认:`~/.9router`)
+- `DATA_DIR` - 数据库存储路径(默认:`~/.HiperRouter`)
 - `INITIAL_PASSWORD` - 仪表盘登录(默认:`123456`)
 - `NODE_ENV` - 部署时设为 `production`
 
@@ -248,7 +248,7 @@ npm run deploy:cloudflare
 **是的,HiperRouter 优先考虑安全和隐私:**
 
 **本地存储:**
-- 所有数据存储在本地 `~/.9router`(或自定义 `DATA_DIR`)
+- 所有数据存储在本地 `~/.HiperRouter`(或自定义 `DATA_DIR`)
 - 不会发送数据到 HiperRouter 服务器
 - OAuth tokens 使用 JWT 加密
 
@@ -317,7 +317,7 @@ docker run -d \
 
 **破坏性变更:**
 - 查看 [CHANGELOG.md](https://github.com/decolua/9router/blob/main/CHANGELOG.md)
-- 大版本更新前备份 `~/.9router`
+- 大版本更新前备份 `~/.HiperRouter`
 - 阅读大版本的迁移指南
 
 ---

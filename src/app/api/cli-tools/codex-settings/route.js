@@ -76,7 +76,7 @@ const readConfig = async () => {
 // Check if config has HiperRouter settings
 const hasHiperRouterConfig = (config) => {
   if (!config) return false;
-  return config.includes("model_provider = \"9router\"") || config.includes("[model_providers.9router]");
+  return config.includes("model_provider = \"9router\"") || config.includes("[model_providers.HiperRouter]");
 };
 
 // GET - Check codex CLI and read current settings
@@ -135,7 +135,7 @@ export async function POST(request) {
     // Update or create 9router provider section (no api_key - Codex reads from auth.json)
     // Ensure /v1 suffix is added only once
     const normalizedBaseUrl = baseUrl.endsWith("/v1") ? baseUrl : `${baseUrl}/v1`;
-    setNestedSection(parsed, "model_providers.9router", {
+    setNestedSection(parsed, "model_providers.HiperRouter", {
       name: "HiperRouter",
       base_url: normalizedBaseUrl,
       wire_api: "responses",
@@ -202,7 +202,7 @@ export async function DELETE() {
     }
 
     // Remove 9router provider section
-    deleteNestedSection(parsed, "model_providers.9router");
+    deleteNestedSection(parsed, "model_providers.HiperRouter");
 
     // Remove subagent configuration
     deleteNestedSection(parsed, "agents.subagent");

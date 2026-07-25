@@ -235,7 +235,7 @@ npm run deploy:cloudflare
 
 **Variables de entorno:**
 - `JWT_SECRET` - **¡DEBE cambiarse en producción!**
-- `DATA_DIR` - Ruta de almacenamiento de la base de datos (por defecto: `~/.9router`)
+- `DATA_DIR` - Ruta de almacenamiento de la base de datos (por defecto: `~/.HiperRouter`)
 - `INITIAL_PASSWORD` - Login del dashboard (por defecto: `123456`)
 - `NODE_ENV` - Establece en `production` para desplegar
 
@@ -248,7 +248,7 @@ Consulta la [guía de despliegue](getting-started/installation.md#deployment) pa
 **Sí, HiperRouter prioriza la seguridad y privacidad:**
 
 **Almacenamiento local:**
-- Todos los datos se almacenan localmente en `~/.9router` (o `DATA_DIR` personalizado)
+- Todos los datos se almacenan localmente en `~/.HiperRouter` (o `DATA_DIR` personalizado)
 - No se envían datos a los servidores de HiperRouter
 - Tokens OAuth cifrados con JWT
 
@@ -317,7 +317,7 @@ docker run -d \
 
 **Cambios disruptivos:**
 - Revisa [CHANGELOG.md](https://github.com/decolua/9router/blob/main/CHANGELOG.md)
-- Respalda `~/.9router` antes de actualizaciones mayores
+- Respalda `~/.HiperRouter` antes de actualizaciones mayores
 - Revisa las guías de migración para versiones mayores
 
 ---

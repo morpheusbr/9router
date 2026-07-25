@@ -58,7 +58,7 @@ function getProjectContext() {
 }
 
 function getHistoryFilePath() {
-  const appDir = path.resolve(__dirname, "../../..", ".9router");
+  const appDir = path.resolve(__dirname, "../../..", ".HiperRouter");
   if (!fs.existsSync(appDir)) {
     fs.mkdirSync(appDir, { recursive: true });
   }

@@ -80,7 +80,18 @@ if (args[0] === "xai" && args[1] === "video") {
   return;
 }
 
-// Self-heal SQLite runtime deps (sql.js + better-sqlite3) into ~/.9router/runtime
+if (args[0] === "sync") {
+  const { run } = require("./src/cli/commands/sync");
+  run(args.slice(1))
+    .then((code) => process.exit(code))
+    .catch((err) => {
+      console.error(`❌ ${err?.message || err}`);
+      process.exit(1);
+    });
+  return;
+}
+
+// Self-heal SQLite runtime deps (sql.js + better-sqlite3) into ~/.HiperRouter/runtime
 // so the server can resolve them via NODE_PATH. Best-effort — sql.js is required,
 // better-sqlite3 is optional. Logs to stderr only on failure.
 try { ensureSqliteRuntime({ silent: true }); } catch {}
@@ -187,7 +198,7 @@ function compareVersions(a, b) {
 
 // Get app data dir (matches app/src/lib/dataDir.js convention)
 function getAppDataDir() {
-  return path.resolve(__dirname, "..", ".9router");
+  return path.resolve(__dirname, "..", ".HiperRouter");
 }
 
 // Kill PID from file (best-effort, removes file after)
@@ -271,11 +282,11 @@ function killAllAppProcesses(appPort) {
           });
           const lines = output.split("\n").slice(1).filter(l => l.trim());
           lines.forEach(line => {
-            // Whitelist: real node process running 9router/cli.js, or next-server.
-            // Avoids killing editors/grep/strace/cursor that just have "9router" in cmdline.
+            // Whitelist: real node process running HiperRouter/cli.js, or next-server.
+            // Avoids killing editors/grep/strace/cursor that just have "HiperRouter" in cmdline.
             const cmd = line.toLowerCase();
             const isAppProcess =
-              (cmd.includes("node") && cmd.includes("9router") && (cmd.includes("cli.js") || cmd.includes("\\9router") || cmd.includes("/9router")))
+              (cmd.includes("node") && cmd.includes("HiperRouter") && (cmd.includes("cli.js") || cmd.includes("\\HiperRouter") || cmd.includes("/HiperRouter")))
               || cmd.includes("next-server");
             if (isAppProcess) {
               const match = line.match(/^"(\d+)"/);
@@ -297,11 +308,11 @@ function killAllAppProcesses(appPort) {
           const lines = output.split('\n');
 
           lines.forEach(line => {
-            // Whitelist: real node process running 9router/cli.js, or next-server.
-            // Avoids killing grep/strace/editors/cursor that incidentally match "9router".
+            // Whitelist: real node process running HiperRouter/cli.js, or next-server.
+            // Avoids killing grep/strace/editors/cursor that incidentally match "HiperRouter".
             const cmd = line.toLowerCase();
             const isAppProcess =
-              (cmd.includes("node") && cmd.includes("9router") && (cmd.includes("cli.js") || cmd.includes("/9router")))
+              (cmd.includes("node") && cmd.includes("HiperRouter") && (cmd.includes("cli.js") || cmd.includes("/HiperRouter")))
               || cmd.includes("next-server");
             if (isAppProcess) {
               const parts = line.trim().split(/\s+/);

@@ -87,7 +87,7 @@ graphify-out/*
 .codegraph/
 .PR/
 .next-analyze/*
-.9router/
+.HiperRouter/
 
 # Databases and Secrets
 *.sqlite

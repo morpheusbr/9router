@@ -235,7 +235,7 @@ npm run deploy:cloudflare
 
 **環境変数:**
 - `JWT_SECRET` - **本番環境で必ず変更!**
-- `DATA_DIR` - データベース保存パス(デフォルト: `~/.9router`)
+- `DATA_DIR` - データベース保存パス(デフォルト: `~/.HiperRouter`)
 - `INITIAL_PASSWORD` - ダッシュボードログイン(デフォルト: `123456`)
 - `NODE_ENV` - デプロイ時は`production`に設定
 
@@ -248,7 +248,7 @@ npm run deploy:cloudflare
 **はい、HiperRouterはセキュリティとプライバシーを優先します:**
 
 **ローカルストレージ:**
-- すべてのデータは`~/.9router`(またはカスタム`DATA_DIR`)にローカル保存
+- すべてのデータは`~/.HiperRouter`(またはカスタム`DATA_DIR`)にローカル保存
 - HiperRouterサーバーへのデータ送信なし
 - OAuthトークンはJWTで暗号化
 
@@ -317,7 +317,7 @@ docker run -d \
 
 **破壊的変更:**
 - [CHANGELOG.md](https://github.com/decolua/9router/blob/main/CHANGELOG.md)を確認
-- メジャー更新前に`~/.9router`をバックアップ
+- メジャー更新前に`~/.HiperRouter`をバックアップ
 - メジャーバージョンの移行ガイドを確認
 
 ---

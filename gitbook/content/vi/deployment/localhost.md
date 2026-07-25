@@ -31,7 +31,7 @@ Dashboard sẽ tự động mở trong trình duyệt tại `http://localhost:30
 **Cấu hình mặc định:**
 - **Dashboard**: `http://localhost:3000`
 - **API Endpoint**: `http://localhost:20128/v1`
-- **Data Directory**: `~/.9router`
+- **Data Directory**: `~/.HiperRouter`
 
 ---
 
@@ -128,10 +128,10 @@ Nếu thư mục data không truy cập được:
 
 ```bash
 # Check permissions
-ls -la ~/.9router
+ls -la ~/.HiperRouter
 
 # Fix permissions
-chmod 755 ~/.9router
+chmod 755 ~/.HiperRouter
 ```
 
 ---
@@ -139,7 +139,7 @@ chmod 755 ~/.9router
 ## 📁 Cấu trúc Data Directory
 
 ```
-~/.9router/
+~/.HiperRouter/
 ├── db.json           # Main database (providers, combos, settings)
 ├── logs/             # Application logs
 └── cache/            # Temporary cache files
@@ -149,10 +149,10 @@ chmod 755 ~/.9router
 
 ```bash
 # Backup
-cp -r ~/.9router ~/.9router.backup
+cp -r ~/.HiperRouter ~/.HiperRouter.backup
 
 # Restore
-cp -r ~/.9router.backup ~/.9router
+cp -r ~/.HiperRouter.backup ~/.HiperRouter
 ```
 
 ---

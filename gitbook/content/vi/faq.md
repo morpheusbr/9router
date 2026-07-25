@@ -235,7 +235,7 @@ npm run deploy:cloudflare
 
 **Biến môi trường:**
 - `JWT_SECRET` - **PHẢI đổi trong production!**
-- `DATA_DIR` - Đường dẫn lưu database (mặc định: `~/.9router`)
+- `DATA_DIR` - Đường dẫn lưu database (mặc định: `~/.HiperRouter`)
 - `INITIAL_PASSWORD` - Đăng nhập Dashboard (mặc định: `123456`)
 - `NODE_ENV` - Đặt `production` để deploy
 
@@ -248,7 +248,7 @@ Xem [hướng dẫn deployment](getting-started/installation.md#deployment) đ�
 **Có, HiperRouter ưu tiên bảo mật và quyền riêng tư:**
 
 **Local storage:**
-- Mọi dữ liệu lưu cục bộ tại `~/.9router` (hoặc `DATA_DIR` tùy chỉnh)
+- Mọi dữ liệu lưu cục bộ tại `~/.HiperRouter` (hoặc `DATA_DIR` tùy chỉnh)
 - Không gửi data đến server HiperRouter
 - OAuth tokens mã hóa bằng JWT
 
@@ -317,7 +317,7 @@ docker run -d \
 
 **Breaking changes:**
 - Xem [CHANGELOG.md](https://github.com/decolua/9router/blob/main/CHANGELOG.md)
-- Backup `~/.9router` trước khi update lớn
+- Backup `~/.HiperRouter` trước khi update lớn
 - Xem hướng dẫn migration cho major version
 
 ---

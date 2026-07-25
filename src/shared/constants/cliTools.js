@@ -375,7 +375,7 @@ amp --model "{{model}}"
     notes: [
       {
         type: "info",
-        text: "Grok Build uses ~/.grok/config.toml. HiperRouter writes a [model.9router] custom model and sets it as the default.",
+        text: "Grok Build uses ~/.grok/config.toml. HiperRouter writes a [model.HiperRouter] custom model and sets it as the default.",
       },
       {
         type: "info",

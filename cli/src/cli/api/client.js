@@ -20,12 +20,12 @@ const APP_NAME = "9router";
 function getDataDir() {
   if (process.env.DATA_DIR) return process.env.DATA_DIR;
   
-  // Check for local .9router in case server runs with custom HOME in PM2
-  const cwdDir = path.join(process.cwd(), '.9router');
+  // Check for local .HiperRouter in case server runs with custom HOME in PM2
+  const cwdDir = path.join(process.cwd(), '.HiperRouter');
   if (fs.existsSync(cwdDir)) return cwdDir;
   
   // Force local directory instead of global
-  return path.resolve(__dirname, "../../../..", ".9router");
+  return path.resolve(__dirname, "../../../..", ".HiperRouter");
 }
 
 const MACHINE_ID_FILE = path.join(getDataDir(), "machine-id");

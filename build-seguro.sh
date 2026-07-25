@@ -19,11 +19,11 @@ fi
 
 echo "📂 Criando ambiente isolado de compilação (-build)..."
 # Sincroniza o laboratório para a pasta de build
-# Ignoramos a pasta .9router (banco de dados) e cli/app (compilados atuais)
+# Ignoramos a pasta .HiperRouter (banco de dados) e cli/app (compilados atuais)
 rsync -a --delete \
   --exclude='.git' \
   --exclude='cli/app' \
-  --exclude='.9router' \
+  --exclude='.HiperRouter' \
   "$REPO_DIR/" "$BUILD_DIR/"
 
 cd "$BUILD_DIR" || exit 1

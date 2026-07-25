@@ -5,7 +5,7 @@ const crypto = require('crypto');
 const PORT = process.env.PORT || 20128;
 const BASE_URL = `http://localhost:${PORT}`;
 
-const DATA_DIR = path.resolve(__dirname, '..', '.9router');
+const DATA_DIR = path.resolve(__dirname, '..', '.HiperRouter');
 const MACHINE_ID_FILE = path.join(DATA_DIR, 'machine-id');
 const CLI_SECRET_FILE = path.join(DATA_DIR, 'auth', 'cli-secret');
 const CLI_TOKEN_SALT = '9r-cli-auth';

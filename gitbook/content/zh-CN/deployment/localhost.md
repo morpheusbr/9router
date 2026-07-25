@@ -31,7 +31,7 @@ npm install -g 9router
 **默认配置:**
 - **仪表盘**: `http://localhost:3000`
 - **API Endpoint**: `http://localhost:20128/v1`
-- **数据目录**: `~/.9router`
+- **数据目录**: `~/.HiperRouter`
 
 ---
 
@@ -128,10 +128,10 @@ source ~/.bashrc
 
 ```bash
 # 检查权限
-ls -la ~/.9router
+ls -la ~/.HiperRouter
 
 # 修复权限
-chmod 755 ~/.9router
+chmod 755 ~/.HiperRouter
 ```
 
 ---
@@ -139,7 +139,7 @@ chmod 755 ~/.9router
 ## 📁 数据目录结构
 
 ```
-~/.9router/
+~/.HiperRouter/
 ├── db.json           # 主数据库(提供商、组合、设置)
 ├── logs/             # 应用日志
 └── cache/            # 临时缓存文件
@@ -149,10 +149,10 @@ chmod 755 ~/.9router
 
 ```bash
 # 备份
-cp -r ~/.9router ~/.9router.backup
+cp -r ~/.HiperRouter ~/.HiperRouter.backup
 
 # 恢复
-cp -r ~/.9router.backup ~/.9router
+cp -r ~/.HiperRouter.backup ~/.HiperRouter
 ```
 
 ---

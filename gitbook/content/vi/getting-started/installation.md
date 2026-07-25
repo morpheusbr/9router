@@ -99,7 +99,7 @@ npm start
 **Điều gì xảy ra:**
 1. Server khởi động tại `http://localhost:20128`
 2. Dashboard tự động mở trong browser
-3. Data directory được tạo tại `~/.9router`
+3. Data directory được tạo tại `~/.HiperRouter`
 4. API key được tạo tự động
 
 ### Đăng nhập Dashboard
@@ -193,7 +193,7 @@ export JWT_SECRET="your-secure-secret-change-this"
 export INITIAL_PASSWORD="your-password"
 
 # Storage
-export DATA_DIR="~/.9router"
+export DATA_DIR="~/.HiperRouter"
 
 # Server
 export PORT="20128"
@@ -205,11 +205,11 @@ export ENABLE_REQUEST_LOGS="false"
 
 ### Data Directory
 
-**Vị trí mặc định:** `~/.9router`
+**Vị trí mặc định:** `~/.HiperRouter`
 
 **Nội dung:**
 ```
-~/.9router/
+~/.HiperRouter/
   ├── db.json           # Database (providers, combos, usage)
   ├── api-keys.json     # API keys
   └── logs/             # Request logs (if enabled)
@@ -407,7 +407,7 @@ docker run -d \
   -p 20128:20128 \
   -e JWT_SECRET="your-secure-secret" \
   -e INITIAL_PASSWORD="your-password" \
-  -v 9router-data:/root/.9router \
+  -v 9router-data:/root/.HiperRouter \
   --name 9router \
   9router/9router:latest
 ```
@@ -450,7 +450,7 @@ npm uninstall -g 9router
 ### Xóa Data Directory
 
 ```bash
-rm -rf ~/.9router
+rm -rf ~/.HiperRouter
 ```
 
 ### Xóa Cấu hình

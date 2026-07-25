@@ -1165,7 +1165,7 @@ pm2 startup
 docker run -d \
   --name 9router \
   -p 20128:20128 \
-  -v "$HOME/.9router:/app/data" \
+  -v "$HOME/.HiperRouter:/app/data" \
   -e DATA_DIR=/app/data \
   decolua/9router:latest
 ```
@@ -1179,7 +1179,7 @@ git clone https://github.com/decolua/9router.git
 cd 9router/app
 docker build -t 9router .
 docker run -d --name 9router -p 20128:20128 \
-  -v "$HOME/.9router:/app/data" -e DATA_DIR=/app/data 9router
+  -v "$HOME/.HiperRouter:/app/data" -e DATA_DIR=/app/data 9router
 ```
 
 **پیش‌فرض‌های کانتینر:**
@@ -1196,15 +1196,15 @@ docker stop 9router && docker rm 9router
 docker pull decolua/9router:latest   # به‌روزرسانی به آخرین نسخه
 ```
 
-**ماندگاری داده:** `$HOME/.9router/db/data.sqlite` در میزبان ↔ `/app/data/db/data.sqlite` در کانتینر.
+**ماندگاری داده:** `$HOME/.HiperRouter/db/data.sqlite` در میزبان ↔ `/app/data/db/data.sqlite` در کانتینر.
 
 ### متغیرهای محیطی
 
 | متغیر                                             | پیش‌فرض                                  | توضیحات                                                                         |
 | ---------------------------------------------------- | ---------------------------------------- | ----------------------------------------------------------------------------------- |
-| `JWT_SECRET`                                         | تولید خودکار (`~/.9router/jwt-secret`) | راز امضای JWT برای کوکی احراز هویت داشبورد (برای اشتراک بین نمونه‌ها بازنویسی کنید)   |
+| `JWT_SECRET`                                         | تولید خودکار (`~/.HiperRouter/jwt-secret`) | راز امضای JWT برای کوکی احراز هویت داشبورد (برای اشتراک بین نمونه‌ها بازنویسی کنید)   |
 | `INITIAL_PASSWORD`                                   | `123456`                                 | رمز عبور اولین ورود در صورت عدم وجود هش ذخیره شده                                      |
-| `DATA_DIR`                                           | `~/.9router`                             | مکان اصلی داده‌های برنامه (SQLite در `$DATA_DIR/db/data.sqlite`)                       |
+| `DATA_DIR`                                           | `~/.HiperRouter`                             | مکان اصلی داده‌های برنامه (SQLite در `$DATA_DIR/db/data.sqlite`)                       |
 | `PORT`                                               | پیش‌فرض فریم‌ورک                        | پورت سرویس (`۲۰۱۲۸` در مثال‌ها)                                                  |
 | `HOSTNAME`                                           | پیش‌فرض فریم‌ورک                        | هاست بایند (داکر پیش‌فرض `۰.۰.۰.۰` است)                                            |
 | `NODE_ENV`                                           | پیش‌فرض زمان اجرا                          | برای استقرار `production` را تنظیم کنید                                                         |
@@ -1232,7 +1232,7 @@ docker pull decolua/9router:latest   # به‌روزرسانی به آخرین �
 - وضعیت اصلی برنامه: `${DATA_DIR}/db/data.sqlite` (SQLite — ارائه‌دهندگان، ترکیب‌ها، نام‌های مستعار، کلیدها، تنظیمات، تاریخچه استفاده)
 - پشتیبان‌گیری خودکار: `${DATA_DIR}/db/backups/`
 - لاگ‌های اختیاری درخواست/مترجم: `<repo>/logs/...` وقتی `ENABLE_REQUEST_LOGS=true`
-- هر دو `${DATA_DIR}` و `~/.9router` در یک کانتینر داکر به یک مکان اشاره می‌کنند — symlink `/root/.9router -> /app/data` در زمان ساخت ایجاد می‌شود.
+- هر دو `${DATA_DIR}` و `~/.HiperRouter` در یک کانتینر داکر به یک مکان اشاره می‌کنند — symlink `/root/.HiperRouter -> /app/data` در زمان ساخت ایجاد می‌شود.
 
 </details>
 
