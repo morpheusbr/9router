@@ -1,5 +1,21 @@
 const { selectModelFromList } = require("./utils/modelSelector");
 const { prompt, confirm, COLORS } = require("./utils/input");
+
+const autoApprovedCommands = new Set();
+async function confirmWithAuto(question, actionKey) {
+  if (autoApprovedCommands.has(actionKey)) return true;
+  while (true) {
+    const answer = await prompt(`${question} (y/n/s): `);
+    const lower = answer.toLowerCase();
+    if (lower === "y" || lower === "yes" || lower === "sim") return true;
+    if (lower === "n" || lower === "no" || lower === "nao" || lower === "não") return false;
+    if (lower === "s" || lower === "sempre" || lower === "similar") {
+      autoApprovedCommands.add(actionKey);
+      return true;
+    }
+    console.log("Responda 'y' (sim), 'n' (não) ou 's' (sempre aprovar esta ação exata).");
+  }
+}
 const { clearScreen } = require("./utils/display");
 const api = require("./api/client");
 const fs = require("fs");
@@ -73,7 +89,7 @@ async function startChatUI(port) {
 
   clearScreen();
   console.log(`\n💬 ${COLORS.bright}${COLORS.cyan}HiperRouter Agent (God Mode) 🚀${COLORS.reset} - Model: ${COLORS.dim}${model}${COLORS.reset}`);
-  console.log(`${COLORS.dim}Comandos: /plan, /code, /test <arq>, /commit, /review, /skill, /debug, /read <arq>, /model, /clear, /exit${COLORS.reset}\n`);
+  console.log(`${COLORS.dim}Comandos: /plan, /code, /test <arq>, /commit, /review, /skill, /debug, /read <arq>, /model, /web, /menu, /clear, /exit${COLORS.reset}\n`);
 
   let messages = [];
   const historyFile = getHistoryFilePath();
@@ -182,7 +198,27 @@ async function startChatUI(port) {
       if (newModel) model = newModel;
       
       console.log(`\n💬 ${COLORS.bright}${COLORS.cyan}HiperRouter Agent (God Mode) 🚀${COLORS.reset} - Model: ${COLORS.dim}${model}${COLORS.reset}`);
-      console.log(`${COLORS.dim}Comandos: /plan, /code, /test <arq>, /commit, /review, /skill, /debug, /read <arq>, /model, /clear, /exit${COLORS.reset}\n`);
+      console.log(`${COLORS.dim}Comandos: /plan, /code, /test <arq>, /commit, /review, /skill, /debug, /read <arq>, /model, /web, /menu, /clear, /exit${COLORS.reset}\n`);
+      continue;
+    } else if (lowerMsg === '/menu') {
+      const { startTerminalUI } = require("./terminalUI");
+      await startTerminalUI(port);
+      clearScreen();
+      console.log(`\n💬 ${COLORS.bright}${COLORS.cyan}HiperRouter Agent (God Mode) 🚀${COLORS.reset} - Model: ${COLORS.dim}${model}${COLORS.reset}`);
+      console.log(`${COLORS.dim}Comandos: /plan, /code, /test <arq>, /commit, /review, /skill, /debug, /read <arq>, /model, /web, /menu, /clear, /exit${COLORS.reset}\n`);
+      continue;
+    } else if (lowerMsg === '/web') {
+      const { getEndpoint } = require("./utils/endpoint");
+      const { openBrowser } = require("./utils/browser");
+      let serverUrl;
+      try {
+        const { endpoint, tunnelEnabled } = await getEndpoint(port);
+        serverUrl = tunnelEnabled ? endpoint.replace(/\/v1$/, "") : `http://127.0.0.1:${port}`;
+      } catch (e) {
+        serverUrl = `http://127.0.0.1:${port}`;
+      }
+      console.log(`${COLORS.dim}Abrindo painel web em ${serverUrl}...${COLORS.reset}\n`);
+      openBrowser(serverUrl);
       continue;
     } else if (['/plan', '/code', '/skill', '/test'].includes(lowerMsg)) {
       console.log(`${COLORS.red}Forneça instruções adicionais após o comando.${COLORS.reset}\n`); continue;
@@ -240,6 +276,9 @@ código novo (linhas que vão entrar)
         }
 
         let aiFullMessage = "";
+        let pendingPrint = "";
+        let inToolCall = false;
+        
         if (response.body) {
           const reader = response.body.getReader();
           const decoder = new TextDecoder("utf-8");
@@ -254,10 +293,57 @@ código novo (linhas que vão entrar)
                   const data = JSON.parse(line.substring(6));
                   const content = data.choices[0]?.delta?.content || "";
                   aiFullMessage += content;
-                  process.stdout.write(content);
+                  pendingPrint += content;
+                  
+                  while (pendingPrint.length > 0) {
+                    if (!inToolCall) {
+                      let tagStart = pendingPrint.indexOf('<tool_call>');
+                      let partialStart = -1;
+                      for (let i = 1; i <= '<tool_call>'.length; i++) {
+                        if (pendingPrint.endsWith('<tool_call>'.substring(0, i))) {
+                          partialStart = pendingPrint.length - i;
+                          break;
+                        }
+                      }
+                      if (tagStart !== -1) {
+                        process.stdout.write(pendingPrint.substring(0, tagStart));
+                        process.stdout.write(`\n${COLORS.cyan}🛠️  Preparando ação (Tool Call)...${COLORS.reset}\n`);
+                        inToolCall = true;
+                        pendingPrint = pendingPrint.substring(tagStart + '<tool_call>'.length);
+                      } else if (partialStart !== -1) {
+                        process.stdout.write(pendingPrint.substring(0, partialStart));
+                        pendingPrint = pendingPrint.substring(partialStart);
+                        break; // wait for more
+                      } else {
+                        process.stdout.write(pendingPrint);
+                        pendingPrint = "";
+                      }
+                    } else {
+                      let tagEnd = pendingPrint.indexOf('</tool_call>');
+                      let partialEnd = -1;
+                      for (let i = 1; i <= '</tool_call>'.length; i++) {
+                        if (pendingPrint.endsWith('</tool_call>'.substring(0, i))) {
+                          partialEnd = pendingPrint.length - i;
+                          break;
+                        }
+                      }
+                      if (tagEnd !== -1) {
+                        inToolCall = false;
+                        pendingPrint = pendingPrint.substring(tagEnd + '</tool_call>'.length);
+                      } else if (partialEnd !== -1) {
+                        pendingPrint = pendingPrint.substring(partialEnd);
+                        break;
+                      } else {
+                        pendingPrint = "";
+                      }
+                    }
+                  }
                 } catch (e) {}
               }
             }
+          }
+          if (pendingPrint.length > 0 && !inToolCall) {
+            process.stdout.write(pendingPrint);
           }
         }
 
@@ -283,10 +369,14 @@ código novo (linhas que vão entrar)
           }
 
           if (cmd) {
-            const shouldRun = await confirm(`\n${COLORS.yellow}Permitir Tool Call (${funcName})?\n${COLORS.dim}${cmd}${COLORS.reset}`);
+            const shouldRun = await confirmWithAuto(`\n${COLORS.yellow}Permitir Tool Call (${funcName})?\n${COLORS.dim}${cmd}${COLORS.reset}`, cmd);
             if (shouldRun) {
-              const finalCmd = cmd.startsWith("rtk ") ? cmd : `rtk ${cmd}`;
-              console.log(`\n${COLORS.green}Executando Tool Call: ${finalCmd}${COLORS.reset}`);
+              const finalCmd = cmd.split('\n').map(line => {
+                const t = line.trim();
+                if (t && !t.startsWith('#') && !t.startsWith('rtk ')) return 'rtk ' + t;
+                return line;
+              }).join('\n');
+              console.log(`\n${COLORS.green}Executando Tool Call: \n${finalCmd}${COLORS.reset}`);
               try {
                 const output = execSync(finalCmd, { encoding: "utf8", stdio: ["inherit", "pipe", "pipe"] });
                 console.log(output);
@@ -359,7 +449,7 @@ código novo (linhas que vão entrar)
           const filePath = match[1].trim();
           const oldCode = match[2];
           const newCode = match[3];
-          const shouldWrite = await confirm(`\n${COLORS.yellow}Aplicar Patch Cirúrgico no arquivo '${filePath}'?${COLORS.reset}`);
+          const shouldWrite = await confirmWithAuto(`\n${COLORS.yellow}Aplicar Patch Cirúrgico no arquivo '${filePath}'?${COLORS.reset}`, "patch:" + filePath);
           if (shouldWrite) {
             try {
               const fullPath = path.resolve(process.cwd(), filePath);
@@ -381,7 +471,7 @@ código novo (linhas que vão entrar)
         for (const match of fileMatches) {
           const filePath = match[1].trim();
           const fileContent = match[2].trim();
-          const shouldWrite = await confirm(`\n${COLORS.yellow}Salvar novo arquivo '${filePath}'?${COLORS.reset}`);
+          const shouldWrite = await confirmWithAuto(`\n${COLORS.yellow}Salvar novo arquivo '${filePath}'?${COLORS.reset}`, "file:" + filePath);
           if (shouldWrite) {
             try {
               const fullPath = path.resolve(process.cwd(), filePath);
@@ -398,10 +488,14 @@ código novo (linhas que vão entrar)
         const bashMatches = [...aiFullMessage.matchAll(/```(?:bash|sh)\n([\s\S]*?)\n```/g)];
         for (const match of bashMatches) {
           const cmd = match[1].trim();
-          const shouldRun = await confirm(`\n${COLORS.yellow}Executar o comando sugerido acima?\n${COLORS.dim}${cmd}${COLORS.reset}`);
+          const shouldRun = await confirmWithAuto(`\n${COLORS.yellow}Executar o comando sugerido acima?\n${COLORS.dim}${cmd}${COLORS.reset}`, cmd);
           if (shouldRun) {
-            const finalCmd = cmd.startsWith("rtk ") ? cmd : `rtk ${cmd}`;
-            console.log(`\n${COLORS.green}Executando: ${finalCmd}${COLORS.reset}`);
+            const finalCmd = cmd.split('\n').map(line => {
+              const t = line.trim();
+              if (t && !t.startsWith('#') && !t.startsWith('rtk ')) return 'rtk ' + t;
+              return line;
+            }).join('\n');
+            console.log(`\n${COLORS.green}Executando: \n${finalCmd}${COLORS.reset}`);
             try {
               execSync(finalCmd, { stdio: "inherit" });
               console.log(`${COLORS.green}✅ Comando concluído.${COLORS.reset}\n`);
