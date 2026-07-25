@@ -27,6 +27,7 @@ const PUBLIC_API_PATHS = [
   "/api/auth/logout",
   "/api/auth/status",
   "/api/auth/oidc",
+  "/api/auth/setup",
   "/api/version",
   "/api/settings/require-login",
 ];
@@ -210,13 +211,25 @@ export async function proxy(request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  // Protect all dashboard routes
-  if (pathname.startsWith("/dashboard")) {
-    let requireLogin = true;
-    let tunnelDashboardAccess = true;
+  // Setup \u0026 Dashboard Routing Logic
+  if (pathname === "/" || pathname.startsWith("/dashboard") || pathname === "/login" || pathname === "/setup") {
+    let settings = null;
+    try { settings = await loadSettings(); } catch {}
+    
+    // Default to false if not present, enforcing setup on fresh install
+    const isSetupComplete = settings?.isSetupComplete === true;
+    
+    if (!isSetupComplete && pathname !== "/setup") {
+      return NextResponse.redirect(new URL("/setup", request.url));
+    }
+    if (isSetupComplete && pathname === "/setup") {
+      return NextResponse.redirect(new URL("/dashboard", request.url));
+    }
 
-    try {
-      const settings = await loadSettings();
+    if (pathname.startsWith("/dashboard")) {
+      let requireLogin = true;
+      let tunnelDashboardAccess = true;
+
       if (settings) {
         requireLogin = settings.requireLogin !== false;
         tunnelDashboardAccess = settings.tunnelDashboardAccess === true;
@@ -231,11 +244,8 @@ export async function proxy(request) {
           }
         }
       }
-    } catch {
-      // On error, keep defaults (require login, block tunnel)
-    }
 
-    // If login not required, allow through
+      // If login not required, allow through
     if (!requireLogin) return NextResponse.next();
 
     // Verify JWT token
@@ -247,8 +257,8 @@ export async function proxy(request) {
         return NextResponse.redirect(new URL("/login", request.url));
       }
     }
-
-    return NextResponse.redirect(new URL("/login", request.url));
+      return NextResponse.redirect(new URL("/login", request.url));
+    }
   }
 
   // Redirect / to /dashboard if logged in, or /dashboard if it's the root
