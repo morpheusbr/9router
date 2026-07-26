@@ -1,9 +1,42 @@
 # Ignore everything except what's in package.json "files"
 *
+
+# Allow core CLI files
 !cli.js
 !hooks/
 !app/
+!src/
 !package.json
 !README.md
 !LICENSE
 
+# --- Exclude junk inside allowed dirs ---
+
+# node_modules anywhere (app/node_modules is the big offender)
+**/node_modules
+
+# Build-time home dirs with secrets (jwt-secret, machine-id)
+**/.build-home
+
+# Source maps
+**/*.map
+
+# Next.js dev/cache artifacts (keep .next-cli-build which is the prod build)
+**/app/.next
+**/app/.next-cache
+
+# Dev/test configs that shouldn't ship
+**/.env
+**/.env.*
+**/tsconfig.json
+**/next.config.*
+**/tailwind.config.*
+**/postcss.config.*
+**/next-env.d.ts
+
+# Tarball artifacts
+*.tgz
+
+# OS junk
+.DS_Store
+Thumbs.db

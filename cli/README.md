@@ -4,11 +4,11 @@
 
 **Connect All AI Code Tools (Claude Code, Cursor, Antigravity, Copilot, Codex, Gemini, OpenCode, Cline, OpenClaw...) to 40+ AI Providers & 100+ Models.**
 
-[![npm](https://img.shields.io/npm/v/9router.svg)](https://www.npmjs.com/package/9router)
-[![Downloads](https://img.shields.io/npm/dm/9router.svg)](https://www.npmjs.com/package/9router)
+[![npm](https://img.shields.io/npm/v/hiperrouter.svg)](https://www.npmjs.com/package/hiperrouter)
+[![Downloads](https://img.shields.io/npm/dm/hiperrouter.svg)](https://www.npmjs.com/package/hiperrouter)
 [![Docker Pulls](https://img.shields.io/docker/pulls/decolua/9router.svg?logo=docker&label=Docker%20pulls)](https://hub.docker.com/r/decolua/9router)
 [![GHCR](https://img.shields.io/badge/GHCR-decolua%2F9router-blue?logo=github)](https://github.com/decolua/9router/pkgs/container/9router)
-[![License](https://img.shields.io/npm/l/9router.svg)](https://github.com/decolua/9router/blob/main/LICENSE)
+[![License](https://img.shields.io/npm/l/hiperrouter.svg)](https://github.com/decolua/9router/blob/main/LICENSE)
 
 <a href="https://trendshift.io/repositories/22628" target="_blank"><img src="https://trendshift.io/api/badge/repositories/22628" alt="decolua%2F9router | Trendshift" style="width: 250px; height: 55px;" width="250" height="55"/></a>
 
@@ -40,17 +40,17 @@
 **Option 1 — npm (recommended for desktop):**
 
 ```bash
-npm install -g 9router
-9router
+npm install -g hiperrouter
+hiperrouter
 
 # Or run directly with npx
-npx 9router
+npx hiperrouter
 ```
 
 **Option 2 — Docker (server/VPS):**
 
 ```bash
-docker run -d --name 9router -p 20128:20128 \
+docker run -d --name hiperrouter -p 20128:20128 \
   -v "$HOME/.HiperRouter:/app/data" -e DATA_DIR=/app/data \
   decolua/9router:latest
 ```
@@ -79,11 +79,11 @@ That's it! Start coding with FREE AI models.
 ## 🚀 CLI Options
 
 ```bash
-9router                    # Start with default settings
-9router --port 8080        # Custom port
-9router --no-browser       # Don't open browser
-9router --skip-update      # Skip auto-update check
-9router --help             # Show all options
+hiperrouter                    # Start with default settings
+hiperrouter --port 8080        # Custom port
+hiperrouter --no-browser       # Don't open browser
+hiperrouter --skip-update      # Skip auto-update check
+hiperrouter --help             # Show all options
 ```
 
 **Dashboard**: `http://localhost:20128/dashboard`
@@ -93,7 +93,7 @@ That's it! Start coding with FREE AI models.
 ## 🤖 God Mode AI Agent (Interactive CLI)
 
 HiperRouter now includes a powerful, autonomous AI Agent built directly into the CLI.
-Run `9router` and select **"Chat (Interactive)"** from the menu to enter God Mode!
+Run `hiperrouter` and select **"Chat (Interactive)"** from the menu to enter God Mode!
 
 ### ✨ Agent Features
 
@@ -118,7 +118,7 @@ Any tool supporting OpenAI/Claude-compatible API works.
 ## 💾 Data Location
 
 - **macOS/Linux**: `~/.HiperRouter/db/data.sqlite`
-- **Windows**: `%APPDATA%/9router/db/data.sqlite`
+- **Windows**: `%APPDATA%/HiperRouter/db/data.sqlite`
 - **Docker**: `/app/data/db/data.sqlite` (mount `$HOME/.HiperRouter` to persist)
 
 ---
