@@ -90,6 +90,7 @@ graphify-out/*
 .PR/
 .next-analyze/*
 .HiperRouter/
+.9router/
 
 # Databases and Secrets
 *.sqlite
