@@ -34,7 +34,8 @@ const { clearScreen, renderDiffPreview } = require("./utils/display");
 const api = require("./api/client");
 const fs = require("fs");
 const path = require("path");
-const os = require("os");
+const { execSync, spawnSync } = require("child_process");
+
 // --- MILITARY GRADE SECURITY & RESILIENCE HELPERS ---
 
 function sanitizePromptContext(text) {
