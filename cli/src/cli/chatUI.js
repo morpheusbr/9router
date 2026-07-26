@@ -897,7 +897,7 @@ código novo (o que vai entrar no lugar)
             if (patternMatch && pathMatch) {
               cmd = `rtk grep -rin "${patternMatch[1].trim()}" ${pathMatch[1].trim()}`;
             }
-          } else if (funcName === "query-graph") {
+          } else if (funcName === "query-graph" || funcName === "query_graph") {
             const qMatch = paramsBlock.match(/<parameter[^>]*?question[^>]*?>([\s\S]*?)<\/parameter>/i);
             if (qMatch) cmd = `rtk graphify query "${qMatch[1].trim()}"`;
           }
