@@ -30,7 +30,7 @@ async function confirmWithAuto(question, actionKey) {
     console.log("Responda 'y' (sim), 'n' (não), 's' (sempre) ou 't' (enviar texto/feedback).");
   }
 }
-const { clearScreen } = require("./utils/display");
+const { clearScreen, renderDiffPreview } = require("./utils/display");
 const api = require("./api/client");
 const fs = require("fs");
 const path = require("path");
@@ -332,6 +332,53 @@ código novo (o que vai entrar no lugar)
         }
       }
       continue;
+    }
+    if (lowerMsg === '/copy') {
+      const lastAiMsg = [...messages].reverse().find(m => m.role === 'assistant');
+      if (!lastAiMsg) {
+        console.log(`${COLORS.dim}Nenhuma resposta da IA no histórico para copiar.${COLORS.reset}\n`);
+      } else {
+        const { copyToClipboard } = require('./utils/clipboard');
+        const ok = copyToClipboard(lastAiMsg.content);
+        if (ok) console.log(`${COLORS.green}✅ Última resposta da IA copiada para a área de transferência!${COLORS.reset}\n`);
+        else console.log(`${COLORS.red}Falha ao copiar para a área de transferência.${COLORS.reset}\n`);
+      }
+      continue;
+    }
+    if (lowerMsg === '/copy-code') {
+      const lastAiMsg = [...messages].reverse().find(m => m.role === 'assistant');
+      if (!lastAiMsg) {
+        console.log(`${COLORS.dim}Nenhuma resposta da IA no histórico para copiar.${COLORS.reset}\n`);
+      } else {
+        const codeMatches = [...lastAiMsg.content.matchAll(/```(?:\w+)?\n([\s\S]*?)```/g)];
+        if (codeMatches.length === 0) {
+          console.log(`${COLORS.dim}Nenhum bloco de código encontrado na última resposta.${COLORS.reset}\n`);
+        } else {
+          const lastCode = codeMatches[codeMatches.length - 1][1].trim();
+          const { copyToClipboard } = require('./utils/clipboard');
+          const ok = copyToClipboard(lastCode);
+          if (ok) console.log(`${COLORS.green}✅ Último bloco de código copiado para a área de transferência!${COLORS.reset}\n`);
+          else console.log(`${COLORS.red}Falha ao copiar para a área de transferência.${COLORS.reset}\n`);
+        }
+      }
+      continue;
+    }
+    if (lowerMsg === '/paste') {
+      console.log(`\n${COLORS.cyan}📋 Modo Colar Multilinhas Ativado${COLORS.reset}`);
+      console.log(`${COLORS.dim}Cole seu texto. Digite 'END' ou '---' em uma nova linha para enviar:${COLORS.reset}`);
+      const pasteBuffer = [];
+      while (true) {
+        const line = await prompt(`${COLORS.dim}| ${COLORS.reset}`);
+        if (line === 'END' || line === '---' || line === '/send') break;
+        pasteBuffer.push(line);
+      }
+      rawUserMessage = pasteBuffer.join('\n').trim();
+      if (!rawUserMessage) {
+        console.log(`${COLORS.dim}Entrada vazia descartada.${COLORS.reset}\n`);
+        continue;
+      }
+      lowerMsg = rawUserMessage.toLowerCase().trim();
+      console.log(`${COLORS.dim}[Mensagem multilinhas capturada: ${pasteBuffer.length} linhas]${COLORS.reset}\n`);
     }
 
     let appendedContext = "";
@@ -729,6 +776,10 @@ código novo (o que vai entrar no lugar)
           const filePath = match[1].trim();
           const oldCode = match[2];
           const newCode = match[3];
+
+          // Exibir Diff Preview colorido antes de pedir confirmação
+          renderDiffPreview(oldCode, newCode, filePath);
+
           const shouldWrite = await confirmWithAuto(`\n${COLORS.yellow}Aplicar Patch Cirúrgico no arquivo '${filePath}'?${COLORS.reset}`, "patch:" + filePath);
           if (typeof shouldWrite === 'string') {
             messages.push({ role: "assistant", content: aiFullMessage });

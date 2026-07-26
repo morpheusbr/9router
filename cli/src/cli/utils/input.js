@@ -47,9 +47,28 @@ function suspendRawFor(fn) {
   });
 }
 
-async function prompt(question) {
+const SLASH_COMMANDS = [
+  "/plan", "/code", "/test", "/commit", "/review", "/skill", "/debug",
+  "/read", "/model", "/web", "/menu", "/history", "/status", "/undo",
+  "/save", "/copy", "/copy-code", "/paste", "/clear", "/exit"
+];
+
+function defaultCompleter(line) {
+  if (line.startsWith("/")) {
+    const hits = SLASH_COMMANDS.filter((c) => c.startsWith(line));
+    return [hits.length ? hits : SLASH_COMMANDS, line];
+  }
+  return [[], line];
+}
+
+async function prompt(question, options = {}) {
+  const completer = typeof options === "function" ? options : (options.completer || defaultCompleter);
   return suspendRawFor(() => new Promise((resolve) => {
-    const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+    const rl = readline.createInterface({
+      input: process.stdin,
+      output: process.stdout,
+      completer: completer
+    });
     rl.question(question, (answer) => {
       rl.close();
       resolve((answer || "").trim());

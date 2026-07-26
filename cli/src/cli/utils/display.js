@@ -146,11 +146,65 @@ function showHeader(title, subtitle) {
   console.log(`${"=".repeat(60)}\n`);
 }
 
+/**
+ * Render visual colorized diff preview for code patches (red for deleted, green for added)
+ * @param {string} oldCode - Code to be replaced
+ * @param {string} newCode - Code to insert
+ * @param {string} filePath - Target file path
+ */
+function renderDiffPreview(oldCode, newCode, filePath) {
+  const c = COLORS;
+  console.log(`\n${c.cyan}════════════════════════════════════════════════════════════${c.reset}`);
+  console.log(`  🔍 ${c.bold}DIFF PREVIEW: ${filePath}${c.reset}`);
+  console.log(`${c.cyan}════════════════════════════════════════════════════════════${c.reset}`);
+
+  const oldLines = oldCode.split("\n");
+  const newLines = newCode.split("\n");
+
+  console.log(`${c.dim}--- CÓDIGO ANTIGO (REMOVENDO ${oldLines.length} LINHAS) ---${c.reset}`);
+  oldLines.forEach((line) => {
+    console.log(`\x1b[31m- ${line}${c.reset}`);
+  });
+  console.log(`${c.dim}+++ CÓDIGO NOVO (INSERINDO ${newLines.length} LINHAS) +++${c.reset}`);
+  newLines.forEach((line) => {
+    console.log(`\x1b[32m+ ${line}${c.reset}`);
+  });
+  console.log(`${c.cyan}════════════════════════════════════════════════════════════${c.reset}\n`);
+}
+
+/**
+ * Basic terminal syntax highlighter for code snippets
+ * @param {string} code - Code string to highlight
+ * @returns {string} Colorized code string
+ */
+function highlightSyntax(code) {
+  const reset = "\x1b[0m";
+  const cyan = "\x1b[36m";
+  const green = "\x1b[32m";
+  const yellow = "\x1b[33m";
+  const dim = "\x1b[2m";
+
+  return code
+    .split("\n")
+    .map((line) => {
+      if (line.trim().startsWith("//") || line.trim().startsWith("#")) {
+        return `${dim}${line}${reset}`;
+      }
+      return line
+        .replace(/\b(const|let|var|function|return|if|else|for|while|import|export|from|require|async|await|try|catch|class|extends|throw|new|typeof|switch|case|break)\b/g, `${yellow}$1${reset}`)
+        .replace(/\b(true|false|null|undefined|NaN)\b/g, `${cyan}$1${reset}`)
+        .replace(/(["'])(?:(?=(\\?))\2.)*?\1/g, `${green}$&${reset}`);
+    })
+    .join("\n");
+}
+
 module.exports = {
   showBox,
   showMenu,
   showTable,
   showStatus,
   clearScreen,
-  showHeader
+  showHeader,
+  renderDiffPreview,
+  highlightSyntax
 };
