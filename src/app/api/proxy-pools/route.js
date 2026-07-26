@@ -1,5 +1,8 @@
 import { NextResponse } from "next/server";
 import { createProxyPool, getProviderConnections, getProxyPools } from "@/models";
+import { z } from "zod";
+import { withBodyValidation } from "@/lib/api/withValidation";
+import { safeUrlSchema } from "@/shared/validators/zodSchemas";
 
 function toBoolean(value) {
   if (value === "true") return true;
@@ -7,26 +10,14 @@ function toBoolean(value) {
   return undefined;
 }
 
-const VALID_PROXY_TYPES = ["http", "vercel", "cloudflare", "deno"];
-
-function normalizeProxyPoolInput(body = {}) {
-  const name = typeof body?.name === "string" ? body.name.trim() : "";
-  const proxyUrl = typeof body?.proxyUrl === "string" ? body.proxyUrl.trim() : "";
-  const noProxy = typeof body?.noProxy === "string" ? body.noProxy.trim() : "";
-  const isActive = body?.isActive === undefined ? true : body.isActive === true;
-  const strictProxy = body?.strictProxy === true;
-  const type = VALID_PROXY_TYPES.includes(body?.type) ? body.type : "http";
-
-  if (!name) {
-    return { error: "Name is required" };
-  }
-
-  if (!proxyUrl) {
-    return { error: "Proxy URL is required" };
-  }
-
-  return { name, proxyUrl, noProxy, isActive, strictProxy, type };
-}
+const CreateProxyPoolSchema = z.object({
+  name: z.string().min(1, "Name is required").trim(),
+  proxyUrl: safeUrlSchema,
+  noProxy: z.string().optional().default(""),
+  isActive: z.boolean().optional().default(true),
+  strictProxy: z.boolean().optional().default(false),
+  type: z.enum(["http", "vercel", "cloudflare", "deno"]).optional().default("http")
+});
 
 function buildUsageMap(connections = []) {
   const usageMap = new Map();
@@ -74,20 +65,13 @@ export async function GET(request) {
   }
 }
 
-// POST /api/proxy-pools - Create proxy pool
-export async function POST(request) {
+// POST /api/proxy-pools - Create proxy pool with Zod validation & Anti-SSRF protection
+export const POST = withBodyValidation(CreateProxyPoolSchema, async (request, body) => {
   try {
-    const body = await request.json();
-    const normalized = normalizeProxyPoolInput(body);
-
-    if (normalized.error) {
-      return NextResponse.json({ error: normalized.error }, { status: 400 });
-    }
-
-    const proxyPool = await createProxyPool(normalized);
+    const proxyPool = await createProxyPool(body);
     return NextResponse.json({ proxyPool }, { status: 201 });
   } catch (error) {
     console.log("Error creating proxy pool:", error);
     return NextResponse.json({ error: "Failed to create proxy pool" }, { status: 500 });
   }
-}
+});
