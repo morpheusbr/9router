@@ -2,6 +2,7 @@
 
 const path = require("path");
 const fs = require("fs");
+const { spawn } = require("child_process");
 
 const { 
   createSpinner, 
@@ -17,7 +18,7 @@ const {
 } = require("./src/cli/utils/netUtils");
 
 const pkg = require("./package.json");
-const { ensureSqliteRuntime } = require("./hooks/sqliteRuntime");
+const { ensureSqliteRuntime, buildEnvWithRuntime } = require("./hooks/sqliteRuntime");
 const { ensureTrayRuntime } = require("./hooks/trayRuntime");
 const { dispatchSubcommand } = require("./src/cli/commands/registry");
 const {
@@ -115,12 +116,10 @@ Commands:
   }
 
   const updatePromise = checkForUpdate(skipUpdate);
-  await killAllAppProcesses(port);
-  await killProcessOnPort(port);
 
   startServer({ port, host, trayMode, showLog, skipUpdate }, updatePromise);
 
-  function startServer(opts, updatePromise) {
+  async function startServer(opts, updatePromise) {
     const { port, host, trayMode, showLog } = opts;
     const latestVersionPromise = Promise.resolve(updatePromise);
     const displayHost = host === DEFAULT_HOST ? "localhost" : host;
@@ -129,6 +128,28 @@ Commands:
     if (host === DEFAULT_HOST) {
       const lanIp = getLanIp();
       if (lanIp) console.log(`\x1b[33m⚠ Network-exposed: reachable at http://${lanIp}:${port} (bound 0.0.0.0). Use --host 127.0.0.1 for local-only.\x1b[0m`);
+    }
+
+    // Check if server is already running on this port (e.g., PM2 or background service)
+    const isAlreadyRunning = await waitServerReady(port, { timeoutMs: 1000, intervalMs: 100 });
+    let serverProcess = null;
+
+    if (isAlreadyRunning) {
+      console.log(`\x1b[36mℹ Modo Gerenciado: Servidor web já ativo na porta ${port}.\x1b[0m\n`);
+    } else {
+      console.log(`\x1b[36m🚀 Iniciando servidor Web HiperRouter (porta ${port})...\x1b[0m\n`);
+      const env = {
+        ...process.env,
+        PORT: String(port),
+        HOST: host,
+        NODE_ENV: "production",
+      };
+
+      serverProcess = spawn(process.execPath, [serverPath], {
+        env: buildEnvWithRuntime(env),
+        cwd: standaloneDir,
+        stdio: showLog ? "inherit" : ["ignore", "pipe", "pipe"],
+      });
     }
 
     let isCleaningUp = false;
@@ -142,6 +163,9 @@ Commands:
         } catch (e) { }
         killProxyByPidFile();
         killTunnelByPidFile();
+        if (serverProcess && serverProcess.pid) {
+          try { process.kill(serverProcess.pid, "SIGKILL"); } catch (e) {}
+        }
       } catch (e) { }
     }
 
@@ -189,7 +213,13 @@ Commands:
       return;
     }
 
-    waitServerReady(port).then(async () => {
+    waitServerReady(port).then(async (ready) => {
+      if (!ready && !isAlreadyRunning) {
+        console.error(`\x1b[31m❌ Falha ao iniciar o servidor na porta ${port}.\x1b[0m`);
+        cleanup();
+        process.exit(1);
+      }
+
       const latestVersion = await latestVersionPromise;
       initTrayIcon();
 
