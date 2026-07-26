@@ -50,7 +50,8 @@ function suspendRawFor(fn) {
 const SLASH_COMMANDS = [
   "/plan", "/code", "/test", "/commit", "/review", "/skill", "/debug",
   "/read", "/model", "/web", "/menu", "/history", "/status", "/undo",
-  "/save", "/copy", "/copy-code", "/paste", "/clear", "/exit"
+  "/save", "/copy", "/copy-code", "/paste", "/rollback", "/audit", "/stats",
+  "/help", "/clear", "/exit"
 ];
 
 function defaultCompleter(line) {
@@ -63,17 +64,19 @@ function defaultCompleter(line) {
 
 async function prompt(question, options = {}) {
   const completer = typeof options === "function" ? options : (options.completer || defaultCompleter);
-  return suspendRawFor(() => new Promise((resolve) => {
+  primeRawOnce();
+  return new Promise((resolve) => {
     const rl = readline.createInterface({
       input: process.stdin,
       output: process.stdout,
-      completer: completer
+      completer: completer,
+      terminal: true
     });
     rl.question(question, (answer) => {
       rl.close();
       resolve((answer || "").trim());
     });
-  }));
+  });
 }
 
 async function select(question, options) {

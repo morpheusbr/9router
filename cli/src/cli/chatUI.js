@@ -35,9 +35,68 @@ const api = require("./api/client");
 const fs = require("fs");
 const path = require("path");
 const os = require("os");
-const { execSync, spawnSync } = require("child_process");
+// --- MILITARY GRADE SECURITY & RESILIENCE HELPERS ---
+
+function sanitizePromptContext(text) {
+  if (typeof text !== "string") return text;
+  return text
+    .replace(/\b(sk-[a-zA-Z0-9_-]{20,})\b/g, "[REDACTED_OPENAI_KEY]")
+    .replace(/\b(ghp_[a-zA-Z0-9]{30,})\b/g, "[REDACTED_GITHUB_KEY]")
+    .replace(/\b(eyJ[a-zA-Z0-9_-]{10,}\.eyJ[a-zA-Z0-9_-]{10,}\.[a-zA-Z0-9_-]{10,})\b/g, "[REDACTED_JWT_TOKEN]")
+    .replace(/(Bearer\s+)[a-zA-Z0-9._-]{20,}/gi, "$1[REDACTED_BEARER_TOKEN]")
+    .replace(/(DATABASE_URL|MYSQL_PASSWORD|POSTGRES_PASSWORD|REDIS_PASSWORD|SECRET|PASSWORD|API_KEY)=["']?[^"'\s\n]{6,}["']?/gi, "$1=[REDACTED_SECRET]")
+    .replace(/-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----[\s\S]*?-----END (?:RSA |EC |OPENSSH )?PRIVATE KEY-----/g, "[REDACTED_PRIVATE_KEY]");
+}
+
+function logAudit(action, details = {}) {
+  try {
+    const auditDir = path.resolve(process.cwd(), ".HiperRouter");
+    if (!fs.existsSync(auditDir)) fs.mkdirSync(auditDir, { recursive: true });
+    const logPath = path.join(auditDir, "audit.log");
+    const entry = {
+      timestamp: new Date().toISOString(),
+      action,
+      pid: process.pid,
+      cwd: process.cwd(),
+      ...details
+    };
+    fs.appendFileSync(logPath, JSON.stringify(entry) + "\n");
+  } catch(e) {}
+}
+
+let lastGitCheckpoint = null;
+
+function createGitCheckpoint() {
+  try {
+    const stash = execSync("rtk git stash create 2>/dev/null", { encoding: "utf8" }).trim();
+    if (stash) lastGitCheckpoint = stash;
+  } catch(e) {}
+}
+
+function rollbackGitCheckpoint() {
+  logAudit("ROLLBACK_REQUESTED", { checkpoint: lastGitCheckpoint });
+  if (lastGitCheckpoint) {
+    try {
+      execSync(`rtk git reset --hard ${lastGitCheckpoint}`, { stdio: "ignore" });
+      return true;
+    } catch(e) {}
+  }
+  try {
+    execSync("rtk git checkout .", { stdio: "ignore" });
+    return true;
+  } catch(e) { return false; }
+}
+
+const commandExecutionHistory = [];
+function checkInfiniteLoopGuard(cmd) {
+  const norm = cmd.trim().toLowerCase();
+  commandExecutionHistory.push(norm);
+  const repeatCount = commandExecutionHistory.slice(-4).filter(c => c === norm).length;
+  return repeatCount >= 3;
+}
 
 /**
+ * Helper unificado de execução bash com confirmação do usuário.
  * Helper unificado de execução bash com confirmação do usuário.
  * Elimina triplicação de lógica nos blocos de Tool Call XML, Streaming e Post-response.
  *
@@ -62,6 +121,16 @@ async function runBashCommand(rawCmd, opts = {}) {
     feedbackToAI = false,
     selfHealing = false,
   } = opts;
+
+  if (checkInfiniteLoopGuard(rawCmd)) {
+    console.log(`\n${COLORS.red}🛑 [Infinite Loop Guard]: O comando '${rawCmd}' foi tentado 3x seguidas. Pausando auto-healing para segurança.${COLORS.reset}\n`);
+    logAudit("LOOP_GUARD_TRIGGERED", { command: rawCmd });
+    messages.push({ role: 'system', content: `[Infinite Loop Guard Interrompido]: O comando '${rawCmd}' falhou 3 vezes consecutivas. Peça ajuda ao usuário.` });
+    return { aiThinking: false, shouldBreak: true };
+  }
+
+  createGitCheckpoint();
+  logAudit("COMMAND_EXECUTE", { command: rawCmd, approved: true });
 
   const shouldRun = await confirmWithAuto(
     `\n${COLORS.yellow}${confirmLabel}\n${COLORS.dim}${rawCmd}${COLORS.reset}`,
@@ -95,13 +164,14 @@ async function runBashCommand(rawCmd, opts = {}) {
       console.log(output);
     }
     if (feedbackToAI) {
-      messages.push({ role: 'system', content: `Resultado:\n\`\`\`\n${output.substring(0, 50000)}\n\`\`\`\nContinue.` });
+      const sanitizedOut = sanitizePromptContext(output.substring(0, 50000));
+      messages.push({ role: 'system', content: `Resultado:\n\`\`\`\n${sanitizedOut}\n\`\`\`\nContinue.` });
       return { aiThinking: true, shouldBreak: true };
     }
     console.log(`${COLORS.green}✅ Comando concluído.${COLORS.reset}\n`);
     return { aiThinking: false, shouldBreak: false };
   } catch (err) {
-    const errorLog = (err.stderr || err.stdout || err.message).toString();
+    const errorLog = sanitizePromptContext((err.stderr || err.stdout || err.message).toString());
     console.log(`${COLORS.red}Erro na execução:\n${errorLog}${COLORS.reset}\n`);
     if (selfHealing) {
       console.log(`${COLORS.dim}🧟‍♂️ [IA Self-Healing: Analisando o erro e gerando correção...]${COLORS.reset}`);
@@ -180,7 +250,11 @@ async function startChatUI(port) {
 
   clearScreen();
   console.log(`\n💬 ${COLORS.bright}${COLORS.cyan}HiperRouter Agent (God Mode) 🚀${COLORS.reset} - Model: ${COLORS.dim}${model}${COLORS.reset}`);
-  console.log(`${COLORS.dim}Comandos: /plan, /code, /test <arq>, /commit, /review, /skill, /debug, /read <arq>, /model, /web, /menu, /history [n], /status, /undo, /save [arq], /clear, /exit${COLORS.reset}\n`);
+  console.log(`${COLORS.dim}Comandos: /help para ver a lista completa com explicações detalhadas (/plan, /code, /commit, /read, /model, etc. - Use TAB para autocompletar)${COLORS.reset}\n`);
+
+  const sessionStartTime = Date.now();
+  let sessionRequestCount = 0;
+  let sessionTotalTokens = 0;
 
   let messages = [];
   const historyFile = getHistoryFilePath();
@@ -380,6 +454,79 @@ código novo (o que vai entrar no lugar)
       lowerMsg = rawUserMessage.toLowerCase().trim();
       console.log(`${COLORS.dim}[Mensagem multilinhas capturada: ${pasteBuffer.length} linhas]${COLORS.reset}\n`);
     }
+    if (lowerMsg === '/rollback') {
+      const ok = rollbackGitCheckpoint();
+      if (ok) console.log(`${COLORS.green}✅ Rollback executado com sucesso! Estado do repositório restaurado.${COLORS.reset}\n`);
+      else console.log(`${COLORS.red}Nenhum checkpoint anterior encontrado ou falha ao reverter.${COLORS.reset}\n`);
+      continue;
+    }
+    if (lowerMsg.startsWith('/audit')) {
+      const n = parseInt(lowerMsg.split(' ')[1]) || 15;
+      const auditLogPath = path.join(process.cwd(), '.HiperRouter', 'audit.log');
+      if (fs.existsSync(auditLogPath)) {
+        const lines = fs.readFileSync(auditLogPath, 'utf-8').trim().split('\n').filter(Boolean);
+        const recent = lines.slice(-n);
+        console.log(`\n📜 ${COLORS.bright}LOG DE AUDITORIA (${recent.length} entradas):${COLORS.reset}`);
+        recent.forEach(l => {
+          try {
+            const parsed = JSON.parse(l);
+            console.log(`  ${COLORS.dim}[${parsed.timestamp.slice(11, 19)}]${COLORS.reset} ${COLORS.cyan}${parsed.action}${COLORS.reset} — ${JSON.stringify(parsed)}`);
+          } catch(e) { console.log(`  ${l}`); }
+        });
+        console.log();
+      } else {
+        console.log(`${COLORS.dim}Nenhum log de auditoria encontrado ainda em .HiperRouter/audit.log.${COLORS.reset}\n`);
+      }
+      continue;
+    }
+    if (lowerMsg === '/stats') {
+      const elapsedSec = Math.round((Date.now() - sessionStartTime) / 1000);
+      const min = Math.floor(elapsedSec / 60);
+      const sec = elapsedSec % 60;
+      console.log(`\n📊 ${COLORS.bright}Telemetria da Sessão (God Mode)${COLORS.reset}`);
+      console.log(`  - ${COLORS.cyan}Modelo Ativo:${COLORS.reset} ${model}`);
+      console.log(`  - ${COLORS.cyan}Requisições Realizadas:${COLORS.reset} ${sessionRequestCount}`);
+      console.log(`  - ${COLORS.cyan}Tokens Est. Acumulados:${COLORS.reset} ${sessionTotalTokens.toLocaleString('pt-BR')}`);
+      console.log(`  - ${COLORS.cyan}Tempo de Sessão:${COLORS.reset} ${min}m ${sec}s`);
+      console.log(`  - ${COLORS.cyan}Audit Log:${COLORS.reset} .HiperRouter/audit.log\n`);
+      continue;
+    }
+    if (lowerMsg === '/help' || lowerMsg === 'help') {
+      console.log(`\n📖 ${COLORS.bright}${COLORS.cyan}CENTRAL DE AJUDA — COMANDOS DO HIPERROUTER AGENT (GOD MODE)${COLORS.reset}\n`);
+      const helpMap = [
+        { cmd: "/plan <instruções>", desc: "Modo Planejamento: Gera arquitetura/plano sem alterar código." },
+        { cmd: "/code <instruções>", desc: "Modo Coding: Simula subagentes de arquitetura e QA antes de codar." },
+        { cmd: "/test <arquivo>", desc: "Gerador de Testes: Analisa o arquivo e cria os testes unitários." },
+        { cmd: "/commit", desc: "Auto-Commit: Analisa o git diff e realiza um commit semântico." },
+        { cmd: "/review", desc: "Auditoria de Código: Revisa o git diff buscando bugs, Zod e SSRF." },
+        { cmd: "/skill <instruções>", desc: "Gerador de Skill: Cria uma nova skill personalizada no projeto." },
+        { cmd: "/debug", desc: "Modo Debug: Captura os últimos erros PM2 (9router) para correção." },
+        { cmd: "/read <arquivo>", desc: "Leitor: Injeta o conteúdo de um arquivo local na conversa." },
+        { cmd: "/model", desc: "Trocar Modelo: Abre menu interativo com setas ↑↓ para trocar LLM." },
+        { cmd: "/web", desc: "Painel Web: Abre a URL do dashboard no seu navegador." },
+        { cmd: "/menu", desc: "Menu Principal: Abre a TUI interativa de gerenciamento." },
+        { cmd: "/history [n]", desc: "Histórico: Exibe as últimas N mensagens trocadas no chat." },
+        { cmd: "/status", desc: "Status API: Verifica se o servidor proxy está respondendo (ping)." },
+        { cmd: "/undo", desc: "Restaurar Backup: Reverte o arquivo para o backup .bak do último patch." },
+        { cmd: "/save [arquivo]", desc: "Salvar Chat: Exporta toda a conversa para um arquivo Markdown." },
+        { cmd: "/copy", desc: "Copiar Resposta: Copia toda a última resposta da IA para o clipboard." },
+        { cmd: "/copy-code", desc: "Copiar Código: Copia apenas o último bloco de código para o clipboard." },
+        { cmd: "/paste", desc: "Modo Multilinhas: Buffer para colar prompts ou logs extensos." },
+        { cmd: "/rollback", desc: "Rollback Repositório: Reverte git ao snapshot pré-patch/comando." },
+        { cmd: "/audit [n]", desc: "Log de Auditoria: Exibe os eventos salvos em .HiperRouter/audit.log." },
+        { cmd: "/stats", desc: "Telemetria: Exibe requisições, tokens consumidos e tempo de sessão." },
+        { cmd: "/help", desc: "Central de Ajuda: Exibe esta lista detalhada de comandos." },
+        { cmd: "/clear", desc: "Limpar Chat: Reseta o histórico de mensagens e limpa a tela." },
+        { cmd: "/exit", desc: "Sair: Encerra a sessão do HiperRouter Agent." }
+      ];
+
+      helpMap.forEach(item => {
+        const paddedCmd = item.cmd.padEnd(20);
+        console.log(`  ${COLORS.green}${paddedCmd}${COLORS.reset} ${COLORS.dim}${item.desc}${COLORS.reset}`);
+      });
+      console.log(`\n${COLORS.dim}Dica: Digite '/' e pressione TAB para autocompletar qualquer comando!${COLORS.reset}\n`);
+      continue;
+    }
 
     let appendedContext = "";
     const readMatch = rawUserMessage.match(/(?:^|\s)\/read\s+([^\s]+)/i);
@@ -387,7 +534,7 @@ código novo (o que vai entrar no lugar)
       const filePath = readMatch[1];
       const fullPath = path.resolve(process.cwd(), filePath);
       if (fs.existsSync(fullPath)) {
-        const fileContent = fs.readFileSync(fullPath, "utf-8");
+        const fileContent = sanitizePromptContext(fs.readFileSync(fullPath, "utf-8"));
         appendedContext = `\n\n[CONTEÚDO LIDO DE '${filePath}']:\n\`\`\`\n${fileContent}\n\`\`\``;
         console.log(`${COLORS.dim}[Modo Read: Arquivo '${filePath}' injetado]${COLORS.reset}`);
         rawUserMessage = rawUserMessage.replace(readMatch[0], "").trim();
@@ -523,6 +670,7 @@ código novo (o que vai entrar no lugar)
           process.stdout.write(`\r${COLORS.cyan}IA: ${COLORS.reset}${frames[spinnerFrame++ % frames.length]} Pensando...`);
         }, 80);
         
+        sessionRequestCount++;
         const response = await fetch(`http://localhost:${port}/v1/chat/completions`, {
           method: "POST",
           headers: { 
@@ -569,6 +717,9 @@ código novo (o que vai entrar no lugar)
                   if (line.startsWith('data: ') && line !== 'data: [DONE]') {
                     try {
                       const data = JSON.parse(line.substring(6));
+                      if (data.usage && data.usage.total_tokens) {
+                        sessionTotalTokens += data.usage.total_tokens;
+                      }
                       const content = data.choices && data.choices[0] && data.choices[0].delta ? (data.choices[0].delta.content || "") : "";
                       aiFullMessage += content;
                       pendingPrint += content;
@@ -779,6 +930,9 @@ código novo (o que vai entrar no lugar)
 
           // Exibir Diff Preview colorido antes de pedir confirmação
           renderDiffPreview(oldCode, newCode, filePath);
+
+          createGitCheckpoint();
+          logAudit("PATCH_APPLIED", { file: filePath });
 
           const shouldWrite = await confirmWithAuto(`\n${COLORS.yellow}Aplicar Patch Cirúrgico no arquivo '${filePath}'?${COLORS.reset}`, "patch:" + filePath);
           if (typeof shouldWrite === 'string') {

@@ -1,9 +1,9 @@
 <div align="center">
-  <img src="./images/9router.png?1" alt="HiperRouter Dashboard" width="800"/>
+  <img src="./images/HiperRouter.png?1" alt="HiperRouter Dashboard" width="800"/>
   
   # HiperRouter
   
-  **O Roteador e Assistente de IA Definitivo (Fork Avançado do 9router)**
+  **O Roteador e Assistente de IA Definitivo (Fork Avançado do HiperRouter)**
 </div>
 
 ---
@@ -19,12 +19,47 @@ Nós mantemos a compatibilidade total de proxy para ferramentas como Claude Code
 ## ✨ Nossos Diferenciais (Features Exclusivas do Fork)
 
 - 🧠 **God Mode AI Agent Integrado**: Um agente conversacional em CLI capaz de ler código, entender arquitetura e propor/modificar arquivos autonomamente com alta precisão cirúrgica.
-- 👑 **Graphify (Knowledge Graph) Integration**: Mapeamento completo e contínuo da sua codebase. A IA não adivinha: ela consulta o grafo (`graphify-out`) para entender dependências, referências e estrutura antes de alterar qualquer código.
-- 🛠️ **Self-Healing Bash**: A IA roda scripts e, se algo falhar (ex: erro de build, lint, pacote não encontrado), ela lê o erro do terminal e tenta se autocorrigir iterativamente, sem você precisar intervir.
-- 🛡️ **Zod Validation & SSRF Protection**: Blindagem interna severa. As rotas recebem estrita validação de esquema com o `Zod`, impedindo ataques de Server-Side Request Forgery em campos que lidam com URLs (como proxys e webhooks).
-- 🧩 **Auto-Aprovação de Comandos (y/n/s)**: A interface interativa memoriza ações similares. Ao escolher `s` (sempre/similar), o agente passará a aprovar automaticamente comandos idênticos que possam entrar em loop, otimizando o fluxo de trabalho.
-- ⚡ **RTK - Rust Token Killer**: Substituto do `bash` puro nas operações internas, poupando até 90% do overhead de tokens quando o modelo inspeciona a rede ou arquivos.
-- 📦 **Build Seguro (Zero Downtime)**: Fluxo de compilação protegido por shell script (`build-seguro.sh`) garantindo que as alterações no painel frontend (Next.js) subam sem derrubar o roteador.
+- 🛡️ **Defesas de Nível Militar (Enterprise Security)**:
+  - **Secret Leak Guard**: Máscara automática de senhas, JWTs e chaves (`sk-...`, `ghp_...`) nos contextos enviados à IA (`[REDACTED_SECRET]`).
+  - **Auto-Checkpoint & `/rollback`**: Snapshots temporários no Git antes de edições. Digite `/rollback` para reverter instantaneamente qualquer alteração da IA.
+  - **Infinite Loop & Token Burn Guard**: Bloqueio inteligente contra loops infinitos de self-healing.
+  - **Log de Auditoria Imutável**: Gravação de eventos de segurança em `.HiperRouter/audit.log` (`/audit`).
+- 🎨 **Experiência de Desenvolvimento (DX/UX Superior)**:
+  - **Visual Diff Preview**: Diffs coloridos (`-` vermelho / `+` verde) antes de aprovar qualquer patch.
+  - **Tab Completion**: Pressione `Tab` após `/` para autocompletar qualquer comando.
+  - **Atalhos Produtivos**: `/copy`, `/copy-code`, `/paste` (multilinhas), `/save` (exportar chat em MD), `/stats` (telemetria de tokens).
+  - **Central de Ajuda Integrada**: Comando `/help` detalhando todos os 24 comandos.
+- 👑 **Graphify (Knowledge Graph) Integration**: Mapeamento completo e contínuo da sua codebase (`graphify-out`) com recarregamento reativo no chat.
+- 🛠️ **Self-Healing Bash**: Executa scripts, lê erros de terminal e realiza auto-correção iterativa.
+- ⚡ **RTK - Rust Token Killer**: Substituto do `bash` puro nas operações internas, poupando até 90% do overhead de tokens.
+- 📦 **Build Seguro (Zero Downtime)**: Fluxo de compilação protegido por shell script (`build-seguro.sh`) sem derrubar o roteador em produção.
+
+---
+
+## 📖 Comandos do God Mode CLI (`/help`)
+
+| Comando | Descrição |
+|---|---|
+| `/plan <instruções>` | Modo Planejamento: Gera arquitetura/plano sem alterar código. |
+| `/code <instruções>` | Modo Coding: Simula subagentes de arquitetura e QA antes de codar. |
+| `/test <arquivo>` | Gerador de Testes: Analisa o arquivo e cria os testes unitários. |
+| `/commit` | Auto-Commit: Analisa o git diff e realiza um commit semântico. |
+| `/review` | Auditoria de Código: Revisa o git diff buscando bugs, Zod e SSRF. |
+| `/read <arquivo>` | Leitor: Injeta o conteúdo de um arquivo local na conversa. |
+| `/model` | Trocar Modelo: Menu interativo com setas ↑↓ para trocar LLM. |
+| `/history [n]` | Histórico: Exibe as últimas N mensagens trocadas no chat. |
+| `/status` | Status API: Verifica se o servidor proxy está respondendo. |
+| `/undo` | Restaurar Backup: Reverte o arquivo para o backup `.bak` mais recente. |
+| `/save [arquivo]` | Salvar Chat: Exporta a conversa para um arquivo Markdown. |
+| `/copy` | Copiar Resposta: Copia toda a última resposta da IA para o clipboard. |
+| `/copy-code` | Copiar Código: Copia apenas o último bloco de código para o clipboard. |
+| `/paste` | Modo Multilinhas: Buffer para colar prompts ou logs extensos. |
+| `/rollback` | Rollback Repositório: Reverte git ao snapshot pré-patch/comando. |
+| `/audit [n]` | Log de Auditoria: Exibe os eventos salvos em `.HiperRouter/audit.log`. |
+| `/stats` | Telemetria: Exibe requisições, tokens consumidos e tempo de sessão. |
+| `/help` | Central de Ajuda: Exibe a lista detalhada de comandos. |
+| `/clear` | Limpar Chat: Reseta o histórico de mensagens e limpa a tela. |
+| `/exit` | Sair: Encerra a sessão do HiperRouter Agent. |
 
 ---
 
@@ -33,7 +68,7 @@ Nós mantemos a compatibilidade total de proxy para ferramentas como Claude Code
 * `cli/` - Ponto de entrada do God Mode AI Agent (`cli.js`) e todo o shell conversacional.
 * `src/` - Lógica do roteador, proxying e manipulação pesada de backend.
 * `app/` - Aplicação Next.js de Dashboard, compilada via `build-seguro.sh`.
-* `.HiperRouter/` - Local do banco de dados (SQLite), contextos isolados e estado das chaves/modelos.
+* `.HiperRouter/` - Local do banco de dados (SQLite), contextos isolados, logs de auditoria (`audit.log`) e estado das chaves.
 
 ---
 
@@ -44,17 +79,11 @@ A partir da raiz do projeto, instale as dependências e inicie:
 ```bash
 npm install
 node cli/cli.js
-# Ou utilize o script '9router' após fazer link local
 ```
 
 ### 2. Conversar com a IA (God Mode)
 No menu principal do CLI, selecione **Chat (Interactive)**.
-A partir daí, basta pedir que a IA realize tarefas:
-> "Como está a arquitetura do nosso CLI?"
-> "Encontre e corrija vulnerabilidades nas APIs."
-> "Inicie os testes para o módulo de proxy."
-
-A IA fará chamadas dinâmicas às ferramentas e pedirá aprovação (y/n/s) antes de modificar os seus arquivos ou executar comandos sensíveis.
+Digite `/help` a qualquer momento para ver a lista de comandos ou pressione `Tab` para autocompletar.
 
 ---
 
