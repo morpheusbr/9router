@@ -454,6 +454,38 @@ código novo (o que vai entrar no lugar)
       lowerMsg = rawUserMessage.toLowerCase().trim();
       console.log(`${COLORS.dim}[Mensagem multilinhas capturada: ${pasteBuffer.length} linhas]${COLORS.reset}\n`);
     }
+    if (lowerMsg === '/paste-image' || lowerMsg.startsWith('/image') || lowerMsg === '/img') {
+      const arg = rawUserMessage.replace(/^\/(?:paste-image|image|img)\s*/i, '').trim();
+      const { getImageFromClipboard } = require('./utils/clipboard');
+      let imgFile = null;
+
+      if (arg && fs.existsSync(path.resolve(process.cwd(), arg))) {
+        imgFile = path.resolve(process.cwd(), arg);
+      } else {
+        console.log(`${COLORS.dim}[Buscando imagem da área de transferência...]${COLORS.reset}`);
+        imgFile = getImageFromClipboard();
+      }
+
+      if (imgFile && fs.existsSync(imgFile)) {
+        const stats = fs.statSync(imgFile);
+        const kb = (stats.size / 1024).toFixed(1);
+        const b64 = fs.readFileSync(imgFile).toString('base64');
+        const ext = path.extname(imgFile).substring(1) || 'png';
+        const mimeType = ext === 'jpg' || ext === 'jpeg' ? 'image/jpeg' : ext === 'webp' ? 'image/webp' : 'image/png';
+        
+        appendedContext = `\n\n[IMAGEM ANEXADA PARA ANÁLISE VISUAL (${kb} KB)]:\ndata:${mimeType};base64,${b64}`;
+        console.log(`${COLORS.green}🖼️  Imagem '${path.basename(imgFile)}' (${kb} KB) capturada e anexada para a IA!${COLORS.reset}`);
+        
+        if (rawUserMessage.startsWith('/')) {
+          rawUserMessage = await prompt(`${COLORS.green}Sua pergunta sobre a imagem: ${COLORS.reset}`);
+          lowerMsg = rawUserMessage.toLowerCase().trim();
+        }
+      } else {
+        console.log(`${COLORS.red}⚠️ Nenhuma imagem encontrada na área de transferência ou no caminho especificado.${COLORS.reset}`);
+        console.log(`${COLORS.dim}Dica: Copie uma imagem para o clipboard (Ctrl+C / PrintScreen) ou forneça um caminho: /image caminho/foto.png${COLORS.reset}\n`);
+        continue;
+      }
+    }
     if (lowerMsg === '/rollback') {
       const ok = rollbackGitCheckpoint();
       if (ok) console.log(`${COLORS.green}✅ Rollback executado com sucesso! Estado do repositório restaurado.${COLORS.reset}\n`);
@@ -512,6 +544,7 @@ código novo (o que vai entrar no lugar)
         { cmd: "/copy", desc: "Copiar Resposta: Copia toda a última resposta da IA para o clipboard." },
         { cmd: "/copy-code", desc: "Copiar Código: Copia apenas o último bloco de código para o clipboard." },
         { cmd: "/paste", desc: "Modo Multilinhas: Buffer para colar prompts ou logs extensos." },
+        { cmd: "/image [arquivo]", desc: "Visão/Clipboard: Captura imagem do clipboard ou arquivo para a IA." },
         { cmd: "/rollback", desc: "Rollback Repositório: Reverte git ao snapshot pré-patch/comando." },
         { cmd: "/audit [n]", desc: "Log de Auditoria: Exibe os eventos salvos em .HiperRouter/audit.log." },
         { cmd: "/stats", desc: "Telemetria: Exibe requisições, tokens consumidos e tempo de sessão." },
@@ -686,10 +719,10 @@ código novo (o que vai entrar no lugar)
         process.stdout.write(`\r${COLORS.cyan}IA: ${COLORS.reset}\x1b[K`);
 
         if (response.status === 429) {
-          // Rate limit: aguardar antes de tentar novamente (n\u00e3o descarta a mensagem)
-          const retryAfter = parseInt(response.headers.get('retry-after') || '15', 10);
-          console.log(`\n${COLORS.yellow}\u26a0\ufe0f  Rate limit (429) \u2014 aguardando ${retryAfter}s antes de tentar novamente...${COLORS.reset}`);
-          await new Promise(r => setTimeout(r, retryAfter * 1000));
+          const headerWait = parseInt(response.headers.get('retry-after') || '15', 10);
+          const waitTime = Math.min(isNaN(headerWait) ? 15 : headerWait, 15);
+          console.log(`\n${COLORS.yellow}⚠️  Rate limit (429) no modelo '${model}' — aguardando ${waitTime}s... (Use /model para trocar de provedor se persistir)${COLORS.reset}`);
+          await new Promise(r => setTimeout(r, waitTime * 1000));
           aiThinking = true; // reiniciar o loop sem descartar a mensagem
           continue;
         }

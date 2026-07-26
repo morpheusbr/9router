@@ -50,8 +50,8 @@ function suspendRawFor(fn) {
 const SLASH_COMMANDS = [
   "/plan", "/code", "/test", "/commit", "/review", "/skill", "/debug",
   "/read", "/model", "/web", "/menu", "/history", "/status", "/undo",
-  "/save", "/copy", "/copy-code", "/paste", "/rollback", "/audit", "/stats",
-  "/help", "/clear", "/exit"
+  "/save", "/copy", "/copy-code", "/paste", "/paste-image", "/image",
+  "/rollback", "/audit", "/stats", "/help", "/clear", "/exit"
 ];
 
 function defaultCompleter(line) {

@@ -5,45 +5,18 @@ import {
   getProxyPoolById,
   updateProxyPool,
 } from "@/models";
+import { z } from "zod";
+import { withBodyValidation } from "@/lib/api/withValidation";
+import { safeUrlSchema } from "@/shared/validators/zodSchemas";
 
-function normalizeProxyPoolUpdate(body = {}) {
-  const updates = {};
-
-  if (Object.prototype.hasOwnProperty.call(body, "name")) {
-    const name = typeof body?.name === "string" ? body.name.trim() : "";
-    if (!name) {
-      return { error: "Name is required" };
-    }
-    updates.name = name;
-  }
-
-  if (Object.prototype.hasOwnProperty.call(body, "proxyUrl")) {
-    const proxyUrl = typeof body?.proxyUrl === "string" ? body.proxyUrl.trim() : "";
-    if (!proxyUrl) {
-      return { error: "Proxy URL is required" };
-    }
-    updates.proxyUrl = proxyUrl;
-  }
-
-  if (Object.prototype.hasOwnProperty.call(body, "noProxy")) {
-    updates.noProxy = typeof body?.noProxy === "string" ? body.noProxy.trim() : "";
-  }
-
-  if (Object.prototype.hasOwnProperty.call(body, "isActive")) {
-    updates.isActive = body?.isActive === true;
-  }
-
-  if (Object.prototype.hasOwnProperty.call(body, "strictProxy")) {
-    updates.strictProxy = body?.strictProxy === true;
-  }
-
-  if (Object.prototype.hasOwnProperty.call(body, "type")) {
-    const validTypes = ["http", "vercel", "cloudflare"];
-    updates.type = validTypes.includes(body?.type) ? body.type : "http";
-  }
-
-  return { updates };
-}
+const UpdateProxyPoolSchema = z.object({
+  name: z.string().min(1, "Name is required").trim().optional(),
+  proxyUrl: safeUrlSchema.optional(),
+  noProxy: z.string().optional(),
+  isActive: z.boolean().optional(),
+  strictProxy: z.boolean().optional(),
+  type: z.enum(["http", "vercel", "cloudflare", "deno"]).optional(),
+});
 
 function countBoundConnections(connections = [], proxyPoolId) {
   return connections.filter((connection) => connection?.providerSpecificData?.proxyPoolId === proxyPoolId).length;
@@ -66,8 +39,8 @@ export async function GET(request, { params }) {
   }
 }
 
-// PUT /api/proxy-pools/[id] - Update proxy pool
-export async function PUT(request, { params }) {
+// PUT /api/proxy-pools/[id] - Update proxy pool with Zod validation & Anti-SSRF
+export const PUT = withBodyValidation(UpdateProxyPoolSchema, async (request, body, { params }) => {
   try {
     const { id } = await params;
     const existing = await getProxyPoolById(id);
@@ -76,20 +49,13 @@ export async function PUT(request, { params }) {
       return NextResponse.json({ error: "Proxy pool not found" }, { status: 404 });
     }
 
-    const body = await request.json();
-    const normalized = normalizeProxyPoolUpdate(body);
-
-    if (normalized.error) {
-      return NextResponse.json({ error: normalized.error }, { status: 400 });
-    }
-
-    const updated = await updateProxyPool(id, normalized.updates);
+    const updated = await updateProxyPool(id, body);
     return NextResponse.json({ proxyPool: updated });
   } catch (error) {
     console.log("Error updating proxy pool:", error);
     return NextResponse.json({ error: "Failed to update proxy pool" }, { status: 500 });
   }
-}
+});
 
 // DELETE /api/proxy-pools/[id] - Delete proxy pool
 export async function DELETE(request, { params }) {
