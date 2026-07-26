@@ -6,13 +6,13 @@
 
 [![npm](https://img.shields.io/npm/v/hiperrouter.svg)](https://www.npmjs.com/package/hiperrouter)
 [![Downloads](https://img.shields.io/npm/dm/hiperrouter.svg)](https://www.npmjs.com/package/hiperrouter)
-[![Docker Pulls](https://img.shields.io/docker/pulls/decolua/9router.svg?logo=docker&label=Docker%20pulls)](https://hub.docker.com/r/decolua/9router)
-[![GHCR](https://img.shields.io/badge/GHCR-decolua%2F9router-blue?logo=github)](https://github.com/decolua/9router/pkgs/container/9router)
-[![License](https://img.shields.io/npm/l/hiperrouter.svg)](https://github.com/decolua/9router/blob/main/LICENSE)
+[![Docker Pulls](https://img.shields.io/docker/pulls/morpheusbr/HiperRouter.svg?logo=docker&label=Docker%20pulls)](https://hub.docker.com/r/morpheusbr/HiperRouter)
+[![GHCR](https://img.shields.io/badge/GHCR-morpheusbr%2FHiperRouter-blue?logo=github)](https://github.com/morpheusbr/HiperRouter/pkgs/container/HiperRouter)
+[![License](https://img.shields.io/npm/l/hiperrouter.svg)](https://github.com/morpheusbr/HiperRouter/blob/main/LICENSE)
 
-<a href="https://trendshift.io/repositories/22628" target="_blank"><img src="https://trendshift.io/api/badge/repositories/22628" alt="decolua%2F9router | Trendshift" style="width: 250px; height: 55px;" width="250" height="55"/></a>
+<a href="https://trendshift.io/repositories/22628" target="_blank"><img src="https://trendshift.io/api/badge/repositories/22628" alt="morpheusbr%2FHiperRouter | Trendshift" style="width: 250px; height: 55px;" width="250" height="55"/></a>
 
-[🌐 Website](https://9router.com) • [📖 Full Docs](https://github.com/decolua/9router)
+[🌐 Website](https://hiperrouter.com) • [📖 Full Docs](https://github.com/morpheusbr/HiperRouter)
 
 ---
 
@@ -52,10 +52,10 @@ npx hiperrouter
 ```bash
 docker run -d --name hiperrouter -p 20128:20128 \
   -v "$HOME/.HiperRouter:/app/data" -e DATA_DIR=/app/data \
-  decolua/9router:latest
+  morpheusbr/HiperRouter:latest
 ```
 
-Published images: [Docker Hub](https://hub.docker.com/r/decolua/9router) • [GHCR](https://github.com/decolua/9router/pkgs/container/9router) (multi-platform amd64/arm64).
+Published images: [Docker Hub](https://hub.docker.com/r/morpheusbr/HiperRouter) • [GHCR](https://github.com/morpheusbr/HiperRouter/pkgs/container/HiperRouter) (multi-platform amd64/arm64).
 
 🎉 Dashboard opens at `http://localhost:20128`
 
@@ -127,9 +127,9 @@ Any tool supporting OpenAI/Claude-compatible API works.
 
 Full docs, advanced setup, video tutorials & development guide:
 
-- **GitHub**: https://github.com/decolua/9router
-- **Full README**: https://github.com/decolua/9router/blob/main/app/README.md
-- **Website**: https://9router.com
+- **GitHub**: https://github.com/morpheusbr/HiperRouter
+- **Full README**: https://github.com/morpheusbr/HiperRouter/blob/main/app/README.md
+- **Website**: https://hiperrouter.com
 
 ---
 
