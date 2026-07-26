@@ -34,7 +34,13 @@ const { clearScreen, renderDiffPreview } = require("./utils/display");
 const api = require("./api/client");
 const fs = require("fs");
 const path = require("path");
-const { execSync, spawnSync } = require("child_process");
+const { execSync, spawn, spawnSync } = require("child_process");
+
+// Graceful Shutdown
+process.on('SIGINT', () => {
+  console.log(`\n\x1b[33mEncerrando CLI graciosamente (Ctrl+C)... Limpando processos pendentes.\x1b[0m`);
+  process.exit(0);
+});
 
 // --- MILITARY GRADE SECURITY & RESILIENCE HELPERS ---
 
@@ -42,10 +48,15 @@ function sanitizePromptContext(text) {
   if (typeof text !== "string") return text;
   return text
     .replace(/\b(sk-[a-zA-Z0-9_-]{20,})\b/g, "[REDACTED_OPENAI_KEY]")
+    .replace(/\b(sk-ant-api[a-zA-Z0-9_-]{20,})\b/g, "[REDACTED_ANTHROPIC_KEY]")
+    .replace(/\b(AKIA[0-9A-Z]{16})\b/g, "[REDACTED_AWS_KEY]")
+    .replace(/\b(AIza[0-9A-Za-z_-]{35})\b/g, "[REDACTED_GCP_KEY]")
     .replace(/\b(ghp_[a-zA-Z0-9]{30,})\b/g, "[REDACTED_GITHUB_KEY]")
+    .replace(/\b(gho_[a-zA-Z0-9]{30,})\b/g, "[REDACTED_GITHUB_OAUTH]")
+    .replace(/\b(glpat-[a-zA-Z0-9_-]{20,})\b/g, "[REDACTED_GITLAB_TOKEN]")
     .replace(/\b(eyJ[a-zA-Z0-9_-]{10,}\.eyJ[a-zA-Z0-9_-]{10,}\.[a-zA-Z0-9_-]{10,})\b/g, "[REDACTED_JWT_TOKEN]")
     .replace(/(Bearer\s+)[a-zA-Z0-9._-]{20,}/gi, "$1[REDACTED_BEARER_TOKEN]")
-    .replace(/(DATABASE_URL|MYSQL_PASSWORD|POSTGRES_PASSWORD|REDIS_PASSWORD|SECRET|PASSWORD|API_KEY)=["']?[^"'\s\n]{6,}["']?/gi, "$1=[REDACTED_SECRET]")
+    .replace(/(DATABASE_URL|MYSQL_PASSWORD|POSTGRES_PASSWORD|REDIS_PASSWORD|SECRET|PASSWORD|API_KEY|PRIVATE_KEY|ACCESS_TOKEN|AUTH_TOKEN)=["']?[^"'\s\n]{6,}["']?/gi, "$1=[REDACTED_SECRET]")
     .replace(/-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----[\s\S]*?-----END (?:RSA |EC |OPENSSH )?PRIVATE KEY-----/g, "[REDACTED_PRIVATE_KEY]");
 }
 
@@ -92,6 +103,7 @@ const commandExecutionHistory = [];
 function checkInfiniteLoopGuard(cmd) {
   const norm = cmd.trim().toLowerCase();
   commandExecutionHistory.push(norm);
+  if (commandExecutionHistory.length > 50) commandExecutionHistory.shift(); // Previne memory leak
   const repeatCount = commandExecutionHistory.slice(-4).filter(c => c === norm).length;
   return repeatCount >= 3;
 }
@@ -156,7 +168,38 @@ async function runBashCommand(rawCmd, opts = {}) {
   if (pushAssistantFirst) messages.push({ role: 'assistant', content: aiFullMessage });
 
   try {
-    const output = execSync(finalCmd, { encoding: 'utf8', stdio: ['inherit', 'pipe', 'pipe'] });
+    const output = await new Promise((resolve, reject) => {
+      const child = spawn(finalCmd, { shell: true, stdio: ['inherit', 'pipe', 'pipe'] });
+      let out = "";
+      
+      // Progress indicator para comandos lentos
+      let timer = null;
+      let ticks = 0;
+      const progressChars = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
+      timer = setInterval(() => {
+        process.stdout.write(`\r\x1b[36mRodando comando... ${progressChars[ticks++ % progressChars.length]}\x1b[0m`);
+      }, 100);
+
+      if (child.stdout) {
+        child.stdout.on('data', data => { out += data.toString(); });
+      }
+      if (child.stderr) {
+        child.stderr.on('data', data => { out += data.toString(); });
+      }
+
+      child.on('close', code => {
+        clearInterval(timer);
+        process.stdout.write(`\r\x1b[K`); // Limpa a linha do spinner
+        if (code === 0) resolve(out);
+        else reject(new Error(out || `Process exited with code ${code}`));
+      });
+      child.on('error', err => {
+        clearInterval(timer);
+        process.stdout.write(`\r\x1b[K`);
+        reject(err);
+      });
+    });
+
     const outputLines = output.split('\n');
     if (outputLines.length > 15) {
       console.log(outputLines.slice(0, 10).join('\n'));
@@ -172,7 +215,7 @@ async function runBashCommand(rawCmd, opts = {}) {
     console.log(`${COLORS.green}✅ Comando concluído.${COLORS.reset}\n`);
     return { aiThinking: false, shouldBreak: false };
   } catch (err) {
-    const errorLog = sanitizePromptContext((err.stderr || err.stdout || err.message).toString());
+    const errorLog = sanitizePromptContext((err.message || err).toString());
     console.log(`${COLORS.red}Erro na execução:\n${errorLog}${COLORS.reset}\n`);
     if (selfHealing) {
       console.log(`${COLORS.dim}🧟‍♂️ [IA Self-Healing: Analisando o erro e gerando correção...]${COLORS.reset}`);
@@ -455,6 +498,7 @@ código novo (o que vai entrar no lugar)
       lowerMsg = rawUserMessage.toLowerCase().trim();
       console.log(`${COLORS.dim}[Mensagem multilinhas capturada: ${pasteBuffer.length} linhas]${COLORS.reset}\n`);
     }
+    let appendedContext = "";
     if (lowerMsg === '/paste-image' || lowerMsg.startsWith('/image') || lowerMsg === '/img') {
       const arg = rawUserMessage.replace(/^\/(?:paste-image|image|img)\s*/i, '').trim();
       const { getImageFromClipboard } = require('./utils/clipboard');
@@ -562,7 +606,7 @@ código novo (o que vai entrar no lugar)
       continue;
     }
 
-    let appendedContext = "";
+    // appendedContext already declared before /paste-image block above
     const readMatch = rawUserMessage.match(/(?:^|\s)\/read\s+([^\s]+)/i);
     if (readMatch) {
       const filePath = readMatch[1];
@@ -662,7 +706,7 @@ código novo (o que vai entrar no lugar)
       continue;
     } else if (lowerMsg === '/web') {
       const { getEndpoint } = require("./utils/endpoint");
-      const { openBrowser } = require("./utils/browser");
+      const { openBrowser } = require("./utils/sysUtils");
       let serverUrl;
       try {
         const { endpoint, tunnelEnabled } = await getEndpoint(port);
@@ -712,7 +756,8 @@ código novo (o que vai entrar no lugar)
             "Authorization": `Bearer ${apiKey}`,
             "x-hiperrouter-cli": "true"
           },
-          body: JSON.stringify({ model: model, messages: messages, stream: true })
+          body: JSON.stringify({ model: model, messages: messages, stream: true }),
+          signal: AbortSignal.timeout(300000) // 5 min safety timeout
         });
 
         clearInterval(spinner);
@@ -724,7 +769,9 @@ código novo (o que vai entrar no lugar)
           const waitTime = Math.min(isNaN(headerWait) ? 15 : headerWait, 15);
           console.log(`\n${COLORS.yellow}⚠️  Rate limit (429) no modelo '${model}' — aguardando ${waitTime}s... (Use /model para trocar de provedor se persistir)${COLORS.reset}`);
           await new Promise(r => setTimeout(r, waitTime * 1000));
-          aiThinking = true; // reiniciar o loop sem descartar a mensagem
+          // Pop the user message that was pushed at L690 to avoid duplication on retry
+          if (messages.length > 0 && messages[messages.length - 1].role === 'user') messages.pop();
+          aiThinking = true;
           continue;
         }
         if (!response.ok) {
@@ -874,11 +921,14 @@ código novo (o que vai entrar no lugar)
         }
 
         // --- Markdown Bash Fallback (God Mode System Prompt compliance) ---
+        // Track executed commands to prevent duplicate execution in post-response pass
+        const executedBashCmds = new Set();
         if (!aiThinking) {
           const bashMatches = [...aiFullMessage.matchAll(/```bash\n([\s\S]*?)```/g)];
           for (const match of bashMatches) {
             const cmd = match[1].trim();
             if (cmd && !aiFullMessage.includes('<tool_call>')) {
+              executedBashCmds.add(cmd);
               const result = await runBashCommand(cmd, {
               confirmLabel: 'Permitir Execução de Bash?',
               confirmFeedbackMsg: 'O usuário abortou a execução e enviou este feedback',
@@ -1024,9 +1074,11 @@ código novo (o que vai entrar no lugar)
         }
 
         // --- Auto-Run Bash com SELF-HEALING ---
-        const bashMatches = [...aiFullMessage.matchAll(/```(?:bash|sh)\n([\s\S]*?)\n```/g)];
-        for (const match of bashMatches) {
+        // Skip commands already executed in the streaming pass to prevent duplicates
+        const bashMatchesSH = [...aiFullMessage.matchAll(/```(?:bash|sh)\n([\s\S]*?)\n```/g)];
+        for (const match of bashMatchesSH) {
           const cmd = match[1].trim();
+          if (executedBashCmds.has(cmd)) continue; // already ran in streaming pass
           const result = await runBashCommand(cmd, {
             confirmLabel: 'Executar o comando sugerido acima?',
             confirmFeedbackMsg: 'O usuário rejeitou o comando e disse',
