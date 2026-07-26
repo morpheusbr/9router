@@ -72,18 +72,40 @@ Nós mantemos a compatibilidade total de proxy para ferramentas como Claude Code
 
 ---
 
-## ⚡ Começando Rápidamente (Quick Start)
+## ⚡ Instalação & Começando Rápidamente (Quick Start)
 
-### 1. Iniciar o CLI
-A partir da raiz do projeto, instale as dependências e inicie:
+### 📦 Opção 1: Via NPM (Recomendado)
+Instale o pacote oficial globalmente no seu sistema para usar em qualquer projeto:
 ```bash
+npm install -g hiperrouter
+
+# Executar o HiperRouter Agent & Server
+hiperrouter
+```
+
+Ou execute diretamente sem instalar nada usando `npx`:
+```bash
+npx hiperrouter
+```
+
+### 🐳 Opção 2: Via Docker
+```bash
+docker run -d --name hiperrouter -p 20128:20128 \
+  -v "$HOME/.HiperRouter:/app/data" -e DATA_DIR=/app/data \
+  morpheusbr/HiperRouter:latest
+```
+
+### 💻 Opção 3: A partir do Código-Fonte (Git Clone)
+Clone o repositório oficial do GitHub:
+```bash
+git clone https://github.com/morpheusbr/HiperRouter.git
+cd HiperRouter
 npm install
 node cli/cli.js
 ```
 
-### 2. Conversar com a IA (God Mode)
-No menu principal do CLI, selecione **Chat (Interactive)**.
-Digite `/help` a qualquer momento para ver a lista de comandos ou pressione `Tab` para autocompletar.
+### 🤖 Conversar com a IA (God Mode)
+No terminal do CLI, o assistente inteligente iniciará automaticamente. Digite `/help` a qualquer momento para ver a lista de 25 comandos disponíveis ou pressione `Tab` para autocompletar.
 
 ---
 
