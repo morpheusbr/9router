@@ -23,6 +23,8 @@ product
 # production
 /build
 .idea/
+.vscode/
+.github/
 
 # misc
 .DS_Store
