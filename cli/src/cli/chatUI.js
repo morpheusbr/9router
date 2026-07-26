@@ -60,44 +60,8 @@ function sanitizePromptContext(text) {
     .replace(/-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----[\s\S]*?-----END (?:RSA |EC |OPENSSH )?PRIVATE KEY-----/g, "[REDACTED_PRIVATE_KEY]");
 }
 
-function logAudit(action, details = {}) {
-  try {
-    const auditDir = path.resolve(process.cwd(), ".HiperRouter");
-    if (!fs.existsSync(auditDir)) fs.mkdirSync(auditDir, { recursive: true });
-    const logPath = path.join(auditDir, "audit.log");
-    const entry = {
-      timestamp: new Date().toISOString(),
-      action,
-      pid: process.pid,
-      cwd: process.cwd(),
-      ...details
-    };
-    fs.appendFileSync(logPath, JSON.stringify(entry) + "\n");
-  } catch(e) {}
-}
-
-let lastGitCheckpoint = null;
-
-function createGitCheckpoint() {
-  try {
-    const stash = execSync("rtk git stash create 2>/dev/null", { encoding: "utf8" }).trim();
-    if (stash) lastGitCheckpoint = stash;
-  } catch(e) {}
-}
-
-function rollbackGitCheckpoint() {
-  logAudit("ROLLBACK_REQUESTED", { checkpoint: lastGitCheckpoint });
-  if (lastGitCheckpoint) {
-    try {
-      execSync(`rtk git reset --hard ${lastGitCheckpoint}`, { stdio: "ignore" });
-      return true;
-    } catch(e) {}
-  }
-  try {
-    execSync("rtk git checkout .", { stdio: "ignore" });
-    return true;
-  } catch(e) { return false; }
-}
+const { logAudit, createGitCheckpoint, rollbackGitCheckpoint, processPatches, processNewFiles } = require("./chat/patchEngine");
+const { showHelp, showAuditLogs } = require("./chat/commands");
 
 const commandExecutionHistory = [];
 function checkInfiniteLoopGuard(cmd) {
@@ -307,7 +271,7 @@ async function startChatUI(port) {
     if (fs.existsSync(historyFile)) {
       const savedMessages = JSON.parse(fs.readFileSync(historyFile, "utf-8"));
       if (Array.isArray(savedMessages) && savedMessages.length > 0) {
-        messages = savedMessages;
+        messages = savedMessages.filter(m => !(m.role === 'assistant' && (!m.content || !m.content.trim())));
         console.log(`${COLORS.dim}[Sessão anterior restaurada. Use /clear para reiniciar]${COLORS.reset}\n`);
       }
     }
@@ -539,21 +503,7 @@ código novo (o que vai entrar no lugar)
     }
     if (lowerMsg.startsWith('/audit')) {
       const n = parseInt(lowerMsg.split(' ')[1]) || 15;
-      const auditLogPath = path.join(process.cwd(), '.HiperRouter', 'audit.log');
-      if (fs.existsSync(auditLogPath)) {
-        const lines = fs.readFileSync(auditLogPath, 'utf-8').trim().split('\n').filter(Boolean);
-        const recent = lines.slice(-n);
-        console.log(`\n📜 ${COLORS.bright}LOG DE AUDITORIA (${recent.length} entradas):${COLORS.reset}`);
-        recent.forEach(l => {
-          try {
-            const parsed = JSON.parse(l);
-            console.log(`  ${COLORS.dim}[${parsed.timestamp.slice(11, 19)}]${COLORS.reset} ${COLORS.cyan}${parsed.action}${COLORS.reset} — ${JSON.stringify(parsed)}`);
-          } catch(e) { console.log(`  ${l}`); }
-        });
-        console.log();
-      } else {
-        console.log(`${COLORS.dim}Nenhum log de auditoria encontrado ainda em .HiperRouter/audit.log.${COLORS.reset}\n`);
-      }
+      showAuditLogs(n);
       continue;
     }
     if (lowerMsg === '/stats') {
@@ -569,40 +519,7 @@ código novo (o que vai entrar no lugar)
       continue;
     }
     if (lowerMsg === '/help' || lowerMsg === 'help') {
-      console.log(`\n📖 ${COLORS.bright}${COLORS.cyan}CENTRAL DE AJUDA — COMANDOS DO HIPERROUTER AGENT (GOD MODE)${COLORS.reset}\n`);
-      const helpMap = [
-        { cmd: "/plan <instruções>", desc: "Modo Planejamento: Gera arquitetura/plano sem alterar código." },
-        { cmd: "/code <instruções>", desc: "Modo Coding: Simula subagentes de arquitetura e QA antes de codar." },
-        { cmd: "/test <arquivo>", desc: "Gerador de Testes: Analisa o arquivo e cria os testes unitários." },
-        { cmd: "/commit", desc: "Auto-Commit: Analisa o git diff e realiza um commit semântico." },
-        { cmd: "/review", desc: "Auditoria de Código: Revisa o git diff buscando bugs, Zod e SSRF." },
-        { cmd: "/skill <instruções>", desc: "Gerador de Skill: Cria uma nova skill personalizada no projeto." },
-        { cmd: "/debug", desc: "Modo Debug: Captura os últimos erros PM2 (9router) para correção." },
-        { cmd: "/read <arquivo>", desc: "Leitor: Injeta o conteúdo de um arquivo local na conversa." },
-        { cmd: "/model", desc: "Trocar Modelo: Abre menu interativo com setas ↑↓ para trocar LLM." },
-        { cmd: "/web", desc: "Painel Web: Abre a URL do dashboard no seu navegador." },
-        { cmd: "/menu", desc: "Menu Principal: Abre a TUI interativa de gerenciamento." },
-        { cmd: "/history [n]", desc: "Histórico: Exibe as últimas N mensagens trocadas no chat." },
-        { cmd: "/status", desc: "Status API: Verifica se o servidor proxy está respondendo (ping)." },
-        { cmd: "/undo", desc: "Restaurar Backup: Reverte o arquivo para o backup .bak do último patch." },
-        { cmd: "/save [arquivo]", desc: "Salvar Chat: Exporta toda a conversa para um arquivo Markdown." },
-        { cmd: "/copy", desc: "Copiar Resposta: Copia toda a última resposta da IA para o clipboard." },
-        { cmd: "/copy-code", desc: "Copiar Código: Copia apenas o último bloco de código para o clipboard." },
-        { cmd: "/paste", desc: "Modo Multilinhas: Buffer para colar prompts ou logs extensos." },
-        { cmd: "/image [arquivo]", desc: "Visão/Clipboard: Captura imagem do clipboard ou arquivo para a IA." },
-        { cmd: "/rollback", desc: "Rollback Repositório: Reverte git ao snapshot pré-patch/comando." },
-        { cmd: "/audit [n]", desc: "Log de Auditoria: Exibe os eventos salvos em .HiperRouter/audit.log." },
-        { cmd: "/stats", desc: "Telemetria: Exibe requisições, tokens consumidos e tempo de sessão." },
-        { cmd: "/help", desc: "Central de Ajuda: Exibe esta lista detalhada de comandos." },
-        { cmd: "/clear", desc: "Limpar Chat: Reseta o histórico de mensagens e limpa a tela." },
-        { cmd: "/exit", desc: "Sair: Encerra a sessão do HiperRouter Agent." }
-      ];
-
-      helpMap.forEach(item => {
-        const paddedCmd = item.cmd.padEnd(20);
-        console.log(`  ${COLORS.green}${paddedCmd}${COLORS.reset} ${COLORS.dim}${item.desc}${COLORS.reset}`);
-      });
-      console.log(`\n${COLORS.dim}Dica: Digite '/' e pressione TAB para autocompletar qualquer comando!${COLORS.reset}\n`);
+      showHelp();
       continue;
     }
 
@@ -943,7 +860,7 @@ código novo (o que vai entrar no lugar)
 
         console.log("\n");
         // Somente faz push se não tivermos feito push dentro da execução (aiThinking == false)
-        if (!aiThinking) {
+        if (!aiThinking && aiFullMessage && aiFullMessage.trim().length > 0) {
           messages.push({ role: "assistant", content: aiFullMessage });
         }
         try {
@@ -1005,72 +922,14 @@ código novo (o que vai entrar no lugar)
           }
         }
 
-        // --- Smart Patch (Cirúrgico) ---
-        const patchMatches = [...aiFullMessage.matchAll(/<patch\s+path="([^"]+)">\s*<<<<\n([\s\S]*?)\n====\n([\s\S]*?)\n>>>>\s*<\/patch>/g)];
-        for (const match of patchMatches) {
-          const filePath = match[1].trim();
-          const oldCode = match[2];
-          const newCode = match[3];
-
-          // Exibir Diff Preview colorido antes de pedir confirmação
-          renderDiffPreview(oldCode, newCode, filePath);
-
-          createGitCheckpoint();
-          logAudit("PATCH_APPLIED", { file: filePath });
-
-          const shouldWrite = await confirmWithAuto(`\n${COLORS.yellow}Aplicar Patch Cirúrgico no arquivo '${filePath}'?${COLORS.reset}`, "patch:" + filePath);
-          if (typeof shouldWrite === 'string') {
-            messages.push({ role: "assistant", content: aiFullMessage });
-            messages.push({ role: "user", content: `(O usuário rejeitou o patch no arquivo '${filePath}' e enviou este feedback: "${shouldWrite}")` });
-            aiThinking = true; break;
-          } else if (shouldWrite) {
-            try {
-              const fullPath = path.resolve(process.cwd(), filePath);
-              // Guardrail: impede path traversal fora do projeto (ex: ../../etc/passwd)
-              if (!fullPath.startsWith(process.cwd() + path.sep)) {
-                console.log(`${COLORS.red}⛔ Patch bloqueado: '${filePath}' está fora do diretório do projeto.${COLORS.reset}\n`);
-                continue;
-              }
-              let content = fs.readFileSync(fullPath, "utf-8");
-              if (content.includes(oldCode)) {
-                // Backup automático para permitir /undo
-                fs.copyFileSync(fullPath, fullPath + '.bak');
-                content = content.replace(oldCode, newCode);
-                fs.writeFileSync(fullPath, content);
-                console.log(`${COLORS.green}✅ Patch cirúrgico aplicado! ${COLORS.dim}(backup em ${filePath}.bak — use /undo para reverter)${COLORS.reset}\n`);
-                try { execSync("rtk graphify update .", { cwd: process.cwd(), stdio: "ignore" }); } catch(e) {}
-              } else {
-                console.log(`${COLORS.red}⚠️ Falha: O código 'antigo' exato não foi encontrado no arquivo. Verifique indentação.${COLORS.reset}\n`);
-              }
-            } catch(e) { console.log(`${COLORS.red}Erro: ${e.message}${COLORS.reset}`); }
-          }
+        // --- Smart Patch & New Files ---
+        if (!aiThinking) {
+          const patchRes = await processPatches(aiFullMessage, messages);
+          if (patchRes.aiThinking) { aiThinking = true; break; }
         }
-
-        // --- Auto-Write New Files ---
-        const fileMatches = [...aiFullMessage.matchAll(/<file\s+path="([^"]+)">([\s\S]*?)<\/file>/g)];
-        for (const match of fileMatches) {
-          const filePath = match[1].trim();
-          const fileContent = match[2].trim();
-          const shouldWrite = await confirmWithAuto(`\n${COLORS.yellow}Salvar novo arquivo '${filePath}'?${COLORS.reset}`, "file:" + filePath);
-          if (typeof shouldWrite === 'string') {
-            messages.push({ role: "assistant", content: aiFullMessage });
-            messages.push({ role: "user", content: `(O usuário rejeitou a criação do arquivo '${filePath}' e disse: "${shouldWrite}")` });
-            aiThinking = true; break;
-          } else if (shouldWrite) {
-            try {
-              const fullPath = path.resolve(process.cwd(), filePath);
-              // Guardrail: impede path traversal fora do projeto
-              if (!fullPath.startsWith(process.cwd() + path.sep)) {
-                console.log(`${COLORS.red}⛔ Criação bloqueada: '${filePath}' está fora do diretório do projeto.${COLORS.reset}\n`);
-                continue;
-              }
-              const dir = path.dirname(fullPath);
-              if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-              fs.writeFileSync(fullPath, fileContent);
-              console.log(`${COLORS.green}✅ Arquivo criado!${COLORS.reset}\n`);
-              try { execSync("rtk graphify update .", { cwd: process.cwd(), stdio: "ignore" }); } catch(e) {}
-            } catch (err) {}
-          }
+        if (!aiThinking) {
+          const fileRes = await processNewFiles(aiFullMessage, messages);
+          if (fileRes.aiThinking) { aiThinking = true; break; }
         }
 
         // --- Auto-Run Bash com SELF-HEALING ---
