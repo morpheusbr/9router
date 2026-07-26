@@ -2,8 +2,17 @@ const { selectModelFromList } = require("./utils/modelSelector");
 const { prompt, confirm, COLORS } = require("./utils/input");
 
 const autoApprovedCommands = new Set();
+
+function getActionPrefix(actionKey) {
+  if (!actionKey) return "";
+  if (actionKey.startsWith("patch:") || actionKey.startsWith("file:")) return actionKey;
+  // Extrair as primeiras 3 palavras do comando para autorizar variações similares do mesmo comando
+  return actionKey.trim().split(/\s+/).slice(0, 3).join(" ");
+}
+
 async function confirmWithAuto(question, actionKey) {
-  if (autoApprovedCommands.has(actionKey)) return true;
+  const prefixKey = getActionPrefix(actionKey);
+  if (autoApprovedCommands.has(actionKey) || autoApprovedCommands.has(prefixKey)) return true;
   while (true) {
     const answer = await prompt(`${question} (y/n/s/t): `);
     const lower = answer.toLowerCase();
@@ -11,6 +20,7 @@ async function confirmWithAuto(question, actionKey) {
     if (lower === "n" || lower === "no" || lower === "nao" || lower === "não") return false;
     if (lower === "s" || lower === "sempre" || lower === "similar") {
       autoApprovedCommands.add(actionKey);
+      if (prefixKey) autoApprovedCommands.add(prefixKey);
       return true;
     }
     if (lower === "t" || lower === "texto") {
@@ -25,7 +35,86 @@ const api = require("./api/client");
 const fs = require("fs");
 const path = require("path");
 const os = require("os");
-const { execSync } = require("child_process");
+const { execSync, spawnSync } = require("child_process");
+
+/**
+ * Helper unificado de execução bash com confirmação do usuário.
+ * Elimina triplicação de lógica nos blocos de Tool Call XML, Streaming e Post-response.
+ *
+ * @param {string} rawCmd - Comando original (sem rtk prefix)
+ * @param {object} opts
+ * @param {string}  opts.confirmLabel      - Texto do prompt de confirmação
+ * @param {string}  opts.confirmFeedbackMsg- Mensagem quando usuário envia feedback em vez de y/n
+ * @param {Array}   opts.messages          - Array de mensagens da conversa
+ * @param {string}  opts.aiFullMessage     - Resposta completa da IA (para push de assistant)
+ * @param {boolean} opts.pushAssistantFirst- Faz push do assistant ANTES de executar
+ * @param {boolean} opts.feedbackToAI      - Envia resultado de volta para a IA continuar (aiThinking)
+ * @param {boolean} opts.selfHealing       - Auto-cura: envia erro para a IA corrigir
+ * @returns {{ aiThinking: boolean, shouldBreak: boolean }}
+ */
+async function runBashCommand(rawCmd, opts = {}) {
+  const {
+    confirmLabel = 'Executar o comando?',
+    confirmFeedbackMsg = 'O usuário rejeitou o comando e disse',
+    messages,
+    aiFullMessage = '',
+    pushAssistantFirst = false,
+    feedbackToAI = false,
+    selfHealing = false,
+  } = opts;
+
+  const shouldRun = await confirmWithAuto(
+    `\n${COLORS.yellow}${confirmLabel}\n${COLORS.dim}${rawCmd}${COLORS.reset}`,
+    rawCmd
+  );
+
+  if (typeof shouldRun === 'string') {
+    messages.push({ role: 'assistant', content: aiFullMessage });
+    messages.push({ role: 'user', content: `(${confirmFeedbackMsg}: "${shouldRun}")` });
+    return { aiThinking: true, shouldBreak: true };
+  }
+  if (!shouldRun) return { aiThinking: false, shouldBreak: false };
+
+  // Injetar prefixo rtk em linhas que ainda não o têm
+  const finalCmd = rawCmd.split('\n').map(line => {
+    const t = line.trim();
+    if (t && !t.startsWith('#') && !t.startsWith('rtk ')) return 'rtk ' + t;
+    return line;
+  }).join('\n');
+
+  console.log(`\n${COLORS.green}Executando: \n${finalCmd}${COLORS.reset}`);
+  if (pushAssistantFirst) messages.push({ role: 'assistant', content: aiFullMessage });
+
+  try {
+    const output = execSync(finalCmd, { encoding: 'utf8', stdio: ['inherit', 'pipe', 'pipe'] });
+    const outputLines = output.split('\n');
+    if (outputLines.length > 15) {
+      console.log(outputLines.slice(0, 10).join('\n'));
+      console.log(`\n${COLORS.dim}... [ + ${outputLines.length - 10} linhas ocultadas da tela. A IA leu tudo na íntegra. ] ...${COLORS.reset}`);
+    } else {
+      console.log(output);
+    }
+    if (feedbackToAI) {
+      messages.push({ role: 'system', content: `Resultado:\n\`\`\`\n${output.substring(0, 50000)}\n\`\`\`\nContinue.` });
+      return { aiThinking: true, shouldBreak: true };
+    }
+    console.log(`${COLORS.green}✅ Comando concluído.${COLORS.reset}\n`);
+    return { aiThinking: false, shouldBreak: false };
+  } catch (err) {
+    const errorLog = (err.stderr || err.stdout || err.message).toString();
+    console.log(`${COLORS.red}Erro na execução:\n${errorLog}${COLORS.reset}\n`);
+    if (selfHealing) {
+      console.log(`${COLORS.dim}🧟‍♂️ [IA Self-Healing: Analisando o erro e gerando correção...]${COLORS.reset}`);
+      messages.push({
+        role: 'system',
+        content: `O comando '${finalCmd}' falhou com este erro:\n\`\`\`\n${errorLog}\n\`\`\`\nAnalise o erro, corrija o que for necessário (criando um patch de código ou sugerindo um comando diferente) e tente resolver autonomamente.`
+      });
+    } else {
+      messages.push({ role: 'system', content: `Erro:\n\`\`\`\n${errorLog}\n\`\`\`\nCorrija se necessário.` });
+    }
+    return { aiThinking: true, shouldBreak: true };
+  }
+}
 
 function findUp(filename, startDir) {
   let currDir = startDir;
@@ -77,23 +166,21 @@ async function startChatUI(port) {
 
   const keysResult = await api.getApiKeys();
   let keys = keysResult.success ? (keysResult.data.keys || []) : [];
-  let apiKey = "sk-f8be614b23b07bf8-6zg78i-217dcd1d"; // Chave solicitada
-  
-  // Garantir fallback seguro caso a chave solicitada não exista ou a requisição falhe
-  if (!keys.find(k => k.key === apiKey)) {
-    if (keys.length > 0) {
-      apiKey = keys[0].key;
-    } else {
-      const createRes = await api.createApiKey("CLI Auto Key");
-      if (createRes.success && createRes.data) {
-        apiKey = createRes.data.key || "no-key";
-      }
+  let apiKey = "no-key";
+
+  // Usar a primeira chave disponível, ou criar uma automaticamente
+  if (keys.length > 0) {
+    apiKey = keys[0].key;
+  } else {
+    const createRes = await api.createApiKey("CLI Auto Key");
+    if (createRes.success && createRes.data) {
+      apiKey = createRes.data.key || "no-key";
     }
   }
 
   clearScreen();
   console.log(`\n💬 ${COLORS.bright}${COLORS.cyan}HiperRouter Agent (God Mode) 🚀${COLORS.reset} - Model: ${COLORS.dim}${model}${COLORS.reset}`);
-  console.log(`${COLORS.dim}Comandos: /plan, /code, /test <arq>, /commit, /review, /skill, /debug, /read <arq>, /model, /web, /menu, /clear, /exit${COLORS.reset}\n`);
+  console.log(`${COLORS.dim}Comandos: /plan, /code, /test <arq>, /commit, /review, /skill, /debug, /read <arq>, /model, /web, /menu, /history [n], /status, /undo, /save [arq], /clear, /exit${COLORS.reset}\n`);
 
   let messages = [];
   const historyFile = getHistoryFilePath();
@@ -110,7 +197,52 @@ async function startChatUI(port) {
 
   const projectContext = getProjectContext();
 
+  // Rastrear mtime do grafo para recarregar contexto quando atualizar em disco
+  let lastGraphMtime = 0;
+  try {
+    const graphifyDir = findUp('graphify-out', process.cwd());
+    if (graphifyDir) {
+      const gp = require('path').join(graphifyDir, 'GRAPH_REPORT.md');
+      if (fs.existsSync(gp)) lastGraphMtime = fs.statSync(gp).mtimeMs;
+    }
+  } catch(e) {}
+  let currentProjectContext = projectContext;
+
+  // godModeRules é constante durante toda a sessão — process.cwd() nunca muda
+  const godModeRules = `\nREGRAS CRÍTICAS DO SISTEMA (MODO DEUS):
+1. TERMINAL: Qualquer sugestão de comando bash DEVE ser prefixada com 'rtk '. Seu CWD é ${process.cwd()}.
+2. AUTO-DISCOVERY: Use <grep search="termo" /> sozinho se precisar buscar código. O sistema fará a busca.
+3. WEB-SURFING: Para ler uma URL/doc na web, use <fetch url="https://..." /> sozinho. O sistema fará o download.
+4. NUNCA ALUCINE BUGS: Você NÃO PODE inventar erros de código sem antes ler os arquivos REAIS usando o terminal (ex: \`\`\`bash\nrtk cat caminho/arquivo.js\n\`\`\`). Sempre valide se o bug existe antes de aplicar um patch.
+5. SMART PATCH: Para editar um arquivo existente, NUNCA use bash (sed/echo/cat) nem reescreva o arquivo inteiro. Use estritamente este bloco de edição cirúrgica:
+<patch path="caminho/arquivo.js">
+<<<<
+código antigo exato (incluindo espaços e quebras de linha exatas a serem removidas)
+====
+código novo (o que vai entrar no lugar)
+>>>>
+</patch>
+6. AUTO-WRITE: Apenas para criar arquivos NOVOS DO ZERO, use <file path="caminho/arquivo.js">conteúdo completo</file>. NUNCA coloque blocos <<<< ==== >>>> dentro da tag <file>.
+7. SCRIPTS TEMPORÁRIOS: Crie scripts temporários APENAS na pasta 'scripts/'. Nos blocos de comando bash, obrigatoriamente inclua a exclusão do script após o uso (ex: rtk node scripts/temp.js && rtk rm scripts/temp.js).
+8. GRAPHIFY: Para consultar o grafo, NUNCA invente tags XML como <tool_call>. Use APENAS o terminal: \`\`\`bash\nrtk graphify query "sua pergunta"\n\`\`\`
+9. ZERO XML INVENTADO: A interface final será exibida para humanos. É ESTRITAMENTE PROIBIDO gerar blocos <tool_call> ou <function>. Sempre que precisar do terminal, use blocos markdown puros (ex: \`\`\`bash\ncomando\n\`\`\`).`;
+
   while (true) {
+    // Auto-recarregar contexto do grafo se o arquivo foi atualizado desde o início da sessão
+    try {
+      const graphifyDir = findUp('graphify-out', process.cwd());
+      if (graphifyDir) {
+        const gp = require('path').join(graphifyDir, 'GRAPH_REPORT.md');
+        if (fs.existsSync(gp)) {
+          const newMtime = fs.statSync(gp).mtimeMs;
+          if (newMtime !== lastGraphMtime) {
+            currentProjectContext = getProjectContext();
+            lastGraphMtime = newMtime;
+            console.log(`${COLORS.dim}[Contexto do projeto atualizado automaticamente]${COLORS.reset}`);
+          }
+        }
+      }
+    } catch(e) {}
     let rawUserMessage = await prompt(`${COLORS.green}Você: ${COLORS.reset}`);
     let lowerMsg = rawUserMessage.toLowerCase().trim();
     
@@ -119,6 +251,86 @@ async function startChatUI(port) {
       messages = [];
       try { fs.unlinkSync(historyFile); } catch(e) {}
       console.log(`${COLORS.dim}Histórico do chat limpo.${COLORS.reset}\n`);
+      continue;
+    }
+    if (lowerMsg.startsWith('/history')) {
+      const n = parseInt(lowerMsg.split(' ')[1]) || 10;
+      const recent = messages.filter(m => m.role !== 'system').slice(-n * 2);
+      if (recent.length === 0) { console.log(`${COLORS.dim}Nenhuma mensagem no histórico.${COLORS.reset}\n`); }
+      recent.forEach(m => {
+        const isUser = m.role === 'user';
+        const prefix = isUser ? `${COLORS.green}Você` : `${COLORS.cyan}IA`;
+        const snippet = m.content.length > 400 ? m.content.substring(0, 400) + '…' : m.content;
+        console.log(`\n${prefix}:${COLORS.reset} ${snippet}`);
+      });
+      console.log();
+      continue;
+    }
+    if (lowerMsg === '/status') {
+      try {
+        const res = await fetch(`http://localhost:${port}/api/health`, { signal: AbortSignal.timeout(3000) });
+        console.log(res.ok
+          ? `${COLORS.green}✅ Servidor UP (porta ${port}) — ${res.status}${COLORS.reset}\n`
+          : `${COLORS.red}⚠️  Servidor respondeu ${res.status} na porta ${port}${COLORS.reset}\n`);
+      } catch {
+        console.log(`${COLORS.red}❌ Servidor inacessível na porta ${port}${COLORS.reset}\n`);
+      }
+      continue;
+    }
+    if (lowerMsg === '/undo') {
+      // Encontra o .bak mais recente criado pelos patches desta sessão
+      const baks = [];
+      try {
+        const findBaks = (dir, depth = 0) => {
+          if (depth > 5) return;
+          for (const f of fs.readdirSync(dir)) {
+            const fp = path.join(dir, f);
+            try {
+              const st = fs.statSync(fp);
+              if (st.isDirectory() && !f.startsWith('.') && f !== 'node_modules') findBaks(fp, depth + 1);
+              else if (f.endsWith('.bak')) baks.push({ fp, mtime: st.mtimeMs });
+            } catch(e) {}
+          }
+        };
+        findBaks(process.cwd());
+      } catch(e) {}
+      if (baks.length === 0) {
+        console.log(`${COLORS.dim}Nenhum arquivo .bak encontrado para restaurar.${COLORS.reset}\n`);
+      } else {
+        baks.sort((a, b) => b.mtime - a.mtime);
+        const newest = baks[0].fp;
+        const original = newest.replace(/\.bak$/, '');
+        const { confirm } = require('./utils/input');
+        const ok = await confirm(`\n${COLORS.yellow}Restaurar '${original}' a partir do backup '${newest}'?${COLORS.reset}`);
+        if (ok) {
+          fs.copyFileSync(newest, original);
+          fs.unlinkSync(newest);
+          console.log(`${COLORS.green}✅ Arquivo restaurado com sucesso.${COLORS.reset}\n`);
+        }
+      }
+      continue;
+    }
+    if (lowerMsg.startsWith('/save')) {
+      const arg = rawUserMessage.substring(5).trim();
+      const dateStr = new Date().toISOString().slice(0, 10);
+      const filename = arg || `chat-${dateStr}.md`;
+      const fullSavePath = path.resolve(process.cwd(), filename);
+      const lines = [`# Chat Session \u2014 ${new Date().toLocaleString('pt-BR')}\n\n`];
+      const chatMessages = messages.filter(m => m.role !== 'system');
+      if (chatMessages.length === 0) {
+        console.log(`${COLORS.dim}Nenhuma mensagem na sess\u00e3o para salvar.${COLORS.reset}\n`);
+      } else {
+        chatMessages.forEach(m => {
+          const header = m.role === 'user' ? '## \u{1F464} Voc\u00ea' : '## \u{1F916} IA';
+          lines.push(`${header}\n\n${m.content}\n\n---\n\n`);
+        });
+        try {
+          fs.writeFileSync(fullSavePath, lines.join(''));
+          console.log(`${COLORS.green}\u2705 Conversa salva em '${filename}'${COLORS.reset}\n`);
+        } catch(e) {
+          console.log(`${COLORS.red}Erro ao salvar: ${e.message}${COLORS.reset}\n`);
+        }
+      }
       continue;
     }
 
@@ -148,12 +360,12 @@ async function startChatUI(port) {
     
     if (lowerMsg.startsWith('/plan ')) {
       currentCommand = '/plan';
-      systemPrompt = `Você é um Arquiteto de Software de Elite. Sua tarefa é criar um plano detalhado. Não escreva o código final.\n\nContexto do Projeto:\n${projectContext}`;
+      systemPrompt = `Você é um Arquiteto de Software de Elite. Sua tarefa é criar um plano detalhado. Não escreva o código final.\n\nContexto do Projeto:\n${currentProjectContext}`;
       finalUserMessage = rawUserMessage.substring(6).trim();
       console.log(`${COLORS.dim}[Modo Planning Ativado]${COLORS.reset}`);
     } else if (lowerMsg.startsWith('/code ')) {
       currentCommand = '/code';
-      systemPrompt = `Você é um Engenheiro de Software Sênior (Líder Técnico). Simule subagentes de Arquitetura e QA antes do código final. Escreva código seguro.\n\nContexto do Projeto:\n${projectContext}`;
+      systemPrompt = `Você é um Engenheiro de Software Sênior (Líder Técnico). Simule subagentes de Arquitetura e QA antes do código final. Escreva código seguro.\n\nContexto do Projeto:\n${currentProjectContext}`;
       finalUserMessage = rawUserMessage.substring(6).trim();
       console.log(`${COLORS.dim}[Modo Coding Ativado - Orquestrando subagentes...]${COLORS.reset}`);
     } else if (lowerMsg.startsWith('/test ')) {
@@ -162,7 +374,7 @@ async function startChatUI(port) {
       const fullPath = path.resolve(process.cwd(), filePath);
       if (fs.existsSync(fullPath)) {
         const fileContent = fs.readFileSync(fullPath, "utf-8");
-        systemPrompt = `Você é um Especialista em Testes (QA). Crie os testes unitários completos para o código fornecido usando o framework do projeto. Salve usando OBRIGATORIAMENTE a tag <file path="novoArquivo.test.js">.\n\nContexto do Projeto:\n${projectContext}`;
+        systemPrompt = `Você é um Especialista em Testes (QA). Crie os testes unitários completos para o código fornecido usando o framework do projeto. Salve usando OBRIGATORIAMENTE a tag <file path="novoArquivo.test.js">.\n\nContexto do Projeto:\n${currentProjectContext}`;
         finalUserMessage = `Gere os testes para este arquivo (${filePath}):\n\`\`\`\n${fileContent}\n\`\`\``;
         console.log(`${COLORS.dim}[Modo Test Gen: Analisando '${filePath}'...]${COLORS.reset}`);
       } else {
@@ -182,34 +394,43 @@ async function startChatUI(port) {
       let gitDiff = "";
       try { gitDiff = execSync("rtk git diff HEAD", { encoding: "utf8" }); } catch(e) {}
       if (!gitDiff.trim()) { console.log(`${COLORS.red}Nenhum diff encontrado.${COLORS.reset}\n`); continue; }
-      systemPrompt = `Você é um Subagente de Segurança e QA Sênior. Revise o git diff (uncommitted) buscando bugs críticos, erros de Zod, SSRF ou arquitetura frágil conforme as Regras Globais.\n\nContexto do Projeto:\n${projectContext}`;
+      systemPrompt = `Você é um Subagente de Segurança e QA Sênior. Revise o git diff (uncommitted) buscando bugs críticos, erros de Zod, SSRF ou arquitetura frágil conforme as Regras Globais.\n\nContexto do Projeto:\n${currentProjectContext}`;
       finalUserMessage = `Revise este diff não commitado e recomende melhorias antes do commit:\n\`\`\`diff\n${gitDiff.substring(0, 50000)}\n\`\`\``;
       console.log(`${COLORS.dim}[Modo Review - Auditando seu código pendente...]${COLORS.reset}`);
     } else if (lowerMsg.startsWith('/skill ')) {
       currentCommand = '/skill';
-      systemPrompt = `Você é um Especialista em IA. Crie a skill em um bloco JSON com 'skillName' e 'skillContent'.\nContexto do Projeto:\n${projectContext}`;
+      systemPrompt = `Você é um Especialista em IA. Crie a skill em um bloco JSON com 'skillName' e 'skillContent'.\nContexto do Projeto:\n${currentProjectContext}`;
       finalUserMessage = rawUserMessage.substring(7).trim();
       console.log(`${COLORS.dim}[Modo Skill Ativado]${COLORS.reset}`);
     } else if (lowerMsg === '/debug') {
       currentCommand = '/debug';
-      systemPrompt = `Você é um Especialista em Debugging Sênior. Analise e corrija o erro com base no projeto.\n\nContexto do Projeto:\n${projectContext}`;
+      systemPrompt = `Você é um Especialista em Debugging Sênior. Analise e corrija o erro com base no projeto.\n\nContexto do Projeto:\n${currentProjectContext}`;
       let errorLogs = "";
       try { errorLogs = execSync("rtk pm2 logs 9router --lines 50 --nostream --err", { encoding: "utf8" }); } catch(e) { errorLogs = "Erro ao buscar logs PM2."; }
       finalUserMessage = `Logs de erro PM2:\n\`\`\`\n${errorLogs}\n\`\`\`\n${rawUserMessage}`;
       console.log(`${COLORS.dim}[Modo Debug - Capturando PM2 logs...]${COLORS.reset}`);
     } else if (lowerMsg === '/model') {
       const newModel = await selectModelFromList("Trocar de Modelo", model, { excludeCombos: false });
-      if (newModel) model = newModel;
-      
+      if (newModel && newModel !== model) {
+        model = newModel;
+        // Perguntar se quer manter o histórico com o novo modelo
+        const { confirm } = require('./utils/input');
+        const keepCtx = await confirm(`\n${COLORS.yellow}Manter histórico de conversa com o novo modelo?${COLORS.reset}`);
+        if (!keepCtx) {
+          messages = [];
+          try { fs.unlinkSync(historyFile); } catch(e) {}
+          console.log(`${COLORS.dim}[Contexto limpo para o novo modelo]${COLORS.reset}`);
+        }
+      }
       console.log(`\n💬 ${COLORS.bright}${COLORS.cyan}HiperRouter Agent (God Mode) 🚀${COLORS.reset} - Model: ${COLORS.dim}${model}${COLORS.reset}`);
-      console.log(`${COLORS.dim}Comandos: /plan, /code, /test <arq>, /commit, /review, /skill, /debug, /read <arq>, /model, /web, /menu, /clear, /exit${COLORS.reset}\n`);
+      console.log(`${COLORS.dim}Comandos: /plan, /code, /test <arq>, /commit, /review, /skill, /debug, /read <arq>, /model, /web, /menu, /history [n], /status, /undo, /save [arq], /clear, /exit${COLORS.reset}\n`);
       continue;
     } else if (lowerMsg === '/menu') {
       const { startTerminalUI } = require("./terminalUI");
       await startTerminalUI(port);
       clearScreen();
       console.log(`\n💬 ${COLORS.bright}${COLORS.cyan}HiperRouter Agent (God Mode) 🚀${COLORS.reset} - Model: ${COLORS.dim}${model}${COLORS.reset}`);
-      console.log(`${COLORS.dim}Comandos: /plan, /code, /test <arq>, /commit, /review, /skill, /debug, /read <arq>, /model, /web, /menu, /clear, /exit${COLORS.reset}\n`);
+      console.log(`${COLORS.dim}Comandos: /plan, /code, /test <arq>, /commit, /review, /skill, /debug, /read <arq>, /model, /web, /menu, /history [n], /status, /undo, /save [arq], /clear, /exit${COLORS.reset}\n`);
       continue;
     } else if (lowerMsg === '/web') {
       const { getEndpoint } = require("./utils/endpoint");
@@ -227,26 +448,8 @@ async function startChatUI(port) {
     } else if (['/plan', '/code', '/skill', '/test'].includes(lowerMsg)) {
       console.log(`${COLORS.red}Forneça instruções adicionais após o comando.${COLORS.reset}\n`); continue;
     } else if (messages.length === 0) {
-      systemPrompt = `Você é um assistente de desenvolvimento prestativo.\n\nContexto do Projeto:\n${projectContext}`;
+      systemPrompt = `Você é um assistente de desenvolvimento prestativo.\n\nContexto do Projeto:\n${currentProjectContext}`;
     }
-
-    const godModeRules = `\nREGRAS CRÍTICAS DO SISTEMA (MODO DEUS):
-1. TERMINAL: Qualquer sugestão de comando bash DEVE ser prefixada com 'rtk '. Seu CWD é ${process.cwd()}.
-2. AUTO-DISCOVERY: Use <grep search="termo" /> sozinho se precisar buscar código. O sistema fará a busca.
-3. WEB-SURFING: Para ler uma URL/doc na web, use <fetch url="https://..." /> sozinho. O sistema fará o download.
-4. NUNCA ALUCINE BUGS: Você NÃO PODE inventar erros de código sem antes ler os arquivos REAIS usando o terminal (ex: \`\`\`bash\nrtk cat caminho/arquivo.js\n\`\`\`). Sempre valide se o bug existe antes de aplicar um patch.
-5. SMART PATCH: Para editar um arquivo existente, NUNCA use bash (sed/echo/cat) nem reescreva o arquivo inteiro. Use estritamente este bloco de edição cirúrgica:
-<patch path="caminho/arquivo.js">
-<<<<
-código antigo exato (incluindo espaços e quebras de linha exatas a serem removidas)
-====
-código novo (o que vai entrar no lugar)
->>>>
-</patch>
-6. AUTO-WRITE: Apenas para criar arquivos NOVOS DO ZERO, use <file path="caminho/arquivo.js">conteúdo completo</file>. NUNCA coloque blocos <<<< ==== >>>> dentro da tag <file>.
-7. SCRIPTS TEMPORÁRIOS: Crie scripts temporários APENAS na pasta 'scripts/'. Nos blocos de comando bash, obrigatoriamente inclua a exclusão do script após o uso (ex: rtk node scripts/temp.js && rtk rm scripts/temp.js).
-8. GRAPHIFY: Para consultar o grafo, NUNCA invente tags XML como <tool_call>. Use APENAS o terminal: \`\`\`bash\nrtk graphify query "sua pergunta"\n\`\`\`
-9. ZERO XML INVENTADO: A interface final será exibida para humanos. É ESTRITAMENTE PROIBIDO gerar blocos <tool_call> ou <function>. Sempre que precisar do terminal, use blocos markdown puros (ex: \`\`\`bash\ncomando\n\`\`\`).`;
 
     const sysMsg = { role: "system", content: systemPrompt + godModeRules };
     
@@ -258,7 +461,7 @@ código novo (o que vai entrar no lugar)
 
     messages.push({ role: "user", content: finalUserMessage + appendedContext });
 
-    const MAX_HISTORY = 14;
+    const MAX_HISTORY = parseInt(process.env.HIPERROUTER_MAX_HISTORY || "20", 10);
     if (messages.length > MAX_HISTORY + 1) {
       messages = [messages[0], ...messages.slice(-MAX_HISTORY)];
     }
@@ -287,6 +490,14 @@ código novo (o que vai entrar no lugar)
         // Clean up the spinner text but keep the "IA: " prefix
         process.stdout.write(`\r${COLORS.cyan}IA: ${COLORS.reset}\x1b[K`);
 
+        if (response.status === 429) {
+          // Rate limit: aguardar antes de tentar novamente (n\u00e3o descarta a mensagem)
+          const retryAfter = parseInt(response.headers.get('retry-after') || '15', 10);
+          console.log(`\n${COLORS.yellow}\u26a0\ufe0f  Rate limit (429) \u2014 aguardando ${retryAfter}s antes de tentar novamente...${COLORS.reset}`);
+          await new Promise(r => setTimeout(r, retryAfter * 1000));
+          aiThinking = true; // reiniciar o loop sem descartar a mensagem
+          continue;
+        }
         if (!response.ok) {
           console.log(`${COLORS.red}Erro API: ${response.status} ${response.statusText}${COLORS.reset}`);
           messages.pop(); break;
@@ -413,40 +624,14 @@ código novo (o que vai entrar no lugar)
           }
 
           if (cmd) {
-            const shouldRun = await confirmWithAuto(`\n${COLORS.yellow}Permitir Tool Call (${funcName})?\n${COLORS.dim}${cmd}${COLORS.reset}`, cmd);
-            if (typeof shouldRun === 'string') {
-              messages.push({ role: "assistant", content: aiFullMessage });
-              messages.push({ role: "user", content: `(O usuário abortou a execução e enviou este feedback: "${shouldRun}")` });
-              aiThinking = true; break;
-            } else if (shouldRun) {
-              const finalCmd = cmd.split('\n').map(line => {
-                const t = line.trim();
-                if (t && !t.startsWith('#') && !t.startsWith('rtk ')) return 'rtk ' + t;
-                return line;
-              }).join('\n');
-              console.log(`\n${COLORS.green}Executando: \n${finalCmd}${COLORS.reset}`);
-              
-              // Push assistant's action FIRST before the result!
-              messages.push({ role: "assistant", content: aiFullMessage });
-              
-              try {
-                const output = execSync(finalCmd, { encoding: "utf8", stdio: ["inherit", "pipe", "pipe"] });
-                const lines = output.split('\n');
-                if (lines.length > 15) {
-                  console.log(lines.slice(0, 10).join('\n'));
-                  console.log(`\n${COLORS.dim}... [ + ${lines.length - 10} linhas ocultadas da tela. A IA leu tudo na íntegra. ] ...${COLORS.reset}`);
-                } else {
-                  console.log(output);
-                }
-                messages.push({ role: "system", content: `Resultado:\n\`\`\`\n${output.substring(0, 50000)}\n\`\`\`\nContinue.` });
-                aiThinking = true; break;
-              } catch (err) {
-                const errorLog = (err.stderr || err.stdout || err.message).toString();
-                console.log(`${COLORS.red}Erro:\n${errorLog}${COLORS.reset}\n`);
-                messages.push({ role: "system", content: `Erro:\n\`\`\`\n${errorLog}\n\`\`\`\nCorrija se necessário.` });
-                aiThinking = true; break;
-              }
-            }
+            const result = await runBashCommand(cmd, {
+              confirmLabel: `Permitir Tool Call (${funcName})?`,
+              confirmFeedbackMsg: 'O usuário abortou a execução e enviou este feedback',
+              messages, aiFullMessage,
+              pushAssistantFirst: true,
+              feedbackToAI: true,
+            });
+            if (result.shouldBreak) { aiThinking = result.aiThinking; break; }
           } else {
             // Se a função for desconhecida, avisa o modelo para tentar de novo com bash!
             console.log(`\n${COLORS.red}⚠️ IA tentou usar ferramenta inexistente: ${funcName}${COLORS.reset}`);
@@ -462,39 +647,14 @@ código novo (o que vai entrar no lugar)
           for (const match of bashMatches) {
             const cmd = match[1].trim();
             if (cmd && !aiFullMessage.includes('<tool_call>')) {
-              const shouldRun = await confirmWithAuto(`\n${COLORS.yellow}Permitir Execução de Bash?\n${COLORS.dim}${cmd}${COLORS.reset}`, cmd);
-              if (typeof shouldRun === 'string') {
-                messages.push({ role: "assistant", content: aiFullMessage });
-                messages.push({ role: "user", content: `(O usuário abortou a execução e enviou este feedback: "${shouldRun}")` });
-                aiThinking = true; break;
-              } else if (shouldRun) {
-                const finalCmd = cmd.split('\n').map(line => {
-                  const t = line.trim();
-                  if (t && !t.startsWith('#') && !t.startsWith('rtk ')) return 'rtk ' + t;
-                  return line;
-                }).join('\n');
-                console.log(`\n${COLORS.green}Executando Bash: \n${finalCmd}${COLORS.reset}`);
-                
-                messages.push({ role: "assistant", content: aiFullMessage });
-                
-                try {
-                  const output = execSync(finalCmd, { encoding: "utf8", stdio: ["inherit", "pipe", "pipe"] });
-                  const lines = output.split('\n');
-                  if (lines.length > 15) {
-                    console.log(lines.slice(0, 10).join('\n'));
-                    console.log(`\n${COLORS.dim}... [ + ${lines.length - 10} linhas ocultadas da tela. A IA leu tudo na íntegra. ] ...${COLORS.reset}`);
-                  } else {
-                    console.log(output);
-                  }
-                  messages.push({ role: "system", content: `Terminal Output:\n\`\`\`\n${output.substring(0, 50000)}\n\`\`\`\nContinue.` });
-                  aiThinking = true; break;
-                } catch (err) {
-                  const errorLog = (err.stderr || err.stdout || err.message).toString();
-                  console.log(`${COLORS.red}Erro Terminal:\n${errorLog}${COLORS.reset}\n`);
-                  messages.push({ role: "system", content: `Terminal Error:\n\`\`\`\n${errorLog}\n\`\`\`\nAnalise e corrija.` });
-                  aiThinking = true; break;
-                }
-              }
+              const result = await runBashCommand(cmd, {
+              confirmLabel: 'Permitir Execução de Bash?',
+              confirmFeedbackMsg: 'O usuário abortou a execução e enviou este feedback',
+              messages, aiFullMessage,
+              pushAssistantFirst: true,
+              feedbackToAI: true,
+            });
+            if (result.shouldBreak) { aiThinking = result.aiThinking; break; }
             }
           }
         }
@@ -504,7 +664,15 @@ código novo (o que vai entrar no lugar)
         if (!aiThinking) {
           messages.push({ role: "assistant", content: aiFullMessage });
         }
-        try { fs.writeFileSync(historyFile, JSON.stringify(messages, null, 2)); } catch(e) {}
+        try {
+          // Compactar mensagens system com output longo antes de salvar (evita arquivos de MB)
+          const compactMessages = messages.map(m =>
+            (m.role === 'system' && m.content.length > 2000)
+              ? { ...m, content: m.content.substring(0, 800) + '\n…[COMPACTADO — conteúdo completo foi processado pela IA]' }
+              : m
+          );
+          fs.writeFileSync(historyFile, JSON.stringify(compactMessages, null, 2));
+        } catch(e) {}
 
         // --- Autonomous Loop: Auto-Discovery (Grep) ---
         const grepMatch = aiFullMessage.match(/<grep\s+search="([^"]+)"\s*\/>/);
@@ -512,8 +680,9 @@ código novo (o que vai entrar no lugar)
           const term = grepMatch[1];
           console.log(`\n${COLORS.dim}🔍 [IA Auto-Discovery: Buscando internamente por '${term}'...]${COLORS.reset}`);
           let grepResult = "";
-          try { 
-            grepResult = execSync(`rtk git grep -in "${term}" | head -n 30`, { encoding: "utf8" }); 
+          try {
+            // JSON.stringify escapa o termo para evitar shell injection vindo da IA
+            grepResult = execSync(`rtk git grep -in -- ${JSON.stringify(term)} | head -n 30`, { encoding: "utf8" });
           } catch(e) { grepResult = "(Nenhum resultado encontrado)"; }
           
           messages.push({ role: "system", content: `Resultado da busca interna para '${term}':\n\`\`\`\n${grepResult || 'Nada encontrado.'}\n\`\`\`\nContinue seu raciocínio.` });
@@ -527,10 +696,10 @@ código novo (o que vai entrar no lugar)
           console.log(`\n${COLORS.dim}🌐 [IA Web Surfing: Lendo conteúdo de '${targetUrl}'...]${COLORS.reset}`);
           let webContent = "";
           try {
-            const res = await fetch(targetUrl);
+            const res = await fetch(targetUrl, { signal: AbortSignal.timeout(10000) });
             const html = await res.text();
             webContent = html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').substring(0, 15000);
-          } catch(e) { webContent = "Falha ao acessar URL."; }
+          } catch(e) { webContent = e.name === 'TimeoutError' ? `Timeout: URL não respondeu em 10s.` : "Falha ao acessar URL."; }
           
           messages.push({ role: "system", content: `Conteúdo lido da URL '${targetUrl}':\n\`\`\`\n${webContent}\n\`\`\`\nContinue seu raciocínio baseando-se nestes dados.` });
           aiThinking = true; continue;
@@ -545,7 +714,8 @@ código novo (o que vai entrar no lugar)
               if (commitData.commitMessage) {
                 const shouldCommit = await confirm(`\n${COLORS.yellow}Confirmar e realizar o commit com esta mensagem?\n"${commitData.commitMessage}"${COLORS.reset}`);
                 if (shouldCommit) {
-                  execSync(`rtk git add . && rtk git commit -m "${commitData.commitMessage.replace(/"/g, '\\"')}"`, { stdio: "inherit" });
+                  spawnSync('git', ['add', '.'], { stdio: 'inherit' });
+                  spawnSync('git', ['commit', '-m', commitData.commitMessage], { stdio: 'inherit' });
                   console.log(`${COLORS.green}✅ Commit realizado!${COLORS.reset}\n`);
                 }
               }
@@ -567,16 +737,22 @@ código novo (o que vai entrar no lugar)
           } else if (shouldWrite) {
             try {
               const fullPath = path.resolve(process.cwd(), filePath);
+              // Guardrail: impede path traversal fora do projeto (ex: ../../etc/passwd)
+              if (!fullPath.startsWith(process.cwd() + path.sep)) {
+                console.log(`${COLORS.red}⛔ Patch bloqueado: '${filePath}' está fora do diretório do projeto.${COLORS.reset}\n`);
+                continue;
+              }
               let content = fs.readFileSync(fullPath, "utf-8");
               if (content.includes(oldCode)) {
+                // Backup automático para permitir /undo
+                fs.copyFileSync(fullPath, fullPath + '.bak');
                 content = content.replace(oldCode, newCode);
                 fs.writeFileSync(fullPath, content);
-                console.log(`${COLORS.green}✅ Patch cirúrgico aplicado!${COLORS.reset}\n`);
+                console.log(`${COLORS.green}✅ Patch cirúrgico aplicado! ${COLORS.dim}(backup em ${filePath}.bak — use /undo para reverter)${COLORS.reset}\n`);
                 try { execSync("rtk graphify update .", { cwd: process.cwd(), stdio: "ignore" }); } catch(e) {}
               } else {
                 console.log(`${COLORS.red}⚠️ Falha: O código 'antigo' exato não foi encontrado no arquivo. Verifique indentação.${COLORS.reset}\n`);
               }
-
             } catch(e) { console.log(`${COLORS.red}Erro: ${e.message}${COLORS.reset}`); }
           }
         }
@@ -594,6 +770,11 @@ código novo (o que vai entrar no lugar)
           } else if (shouldWrite) {
             try {
               const fullPath = path.resolve(process.cwd(), filePath);
+              // Guardrail: impede path traversal fora do projeto
+              if (!fullPath.startsWith(process.cwd() + path.sep)) {
+                console.log(`${COLORS.red}⛔ Criação bloqueada: '${filePath}' está fora do diretório do projeto.${COLORS.reset}\n`);
+                continue;
+              }
               const dir = path.dirname(fullPath);
               if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
               fs.writeFileSync(fullPath, fileContent);
@@ -607,40 +788,15 @@ código novo (o que vai entrar no lugar)
         const bashMatches = [...aiFullMessage.matchAll(/```(?:bash|sh)\n([\s\S]*?)\n```/g)];
         for (const match of bashMatches) {
           const cmd = match[1].trim();
-          const shouldRun = await confirmWithAuto(`\n${COLORS.yellow}Executar o comando sugerido acima?\n${COLORS.dim}${cmd}${COLORS.reset}`, cmd);
-          if (typeof shouldRun === 'string') {
-            messages.push({ role: "assistant", content: aiFullMessage });
-            messages.push({ role: "user", content: `(O usuário rejeitou o comando e disse: "${shouldRun}")` });
-            aiThinking = true; break;
-          } else if (shouldRun) {
-            const finalCmd = cmd.split('\n').map(line => {
-              const t = line.trim();
-              if (t && !t.startsWith('#') && !t.startsWith('rtk ')) return 'rtk ' + t;
-              return line;
-            }).join('\n');
-            console.log(`\n${COLORS.green}Executando: \n${finalCmd}${COLORS.reset}`);
-            try {
-              const output = execSync(finalCmd, { encoding: "utf8", stdio: ["inherit", "pipe", "pipe"] });
-              const lines = output.split('\n');
-              if (lines.length > 15) {
-                console.log(lines.slice(0, 10).join('\n'));
-                console.log(`\n${COLORS.dim}... [ + ${lines.length - 10} linhas ocultadas da tela. A IA leu tudo na íntegra. ] ...${COLORS.reset}`);
-              } else {
-                console.log(output);
-              }
-              console.log(`${COLORS.green}✅ Comando concluído.${COLORS.reset}\n`);
-            } catch (err) {
-              const errorLog = (err.stderr || err.stdout || err.message).toString();
-              console.log(`${COLORS.red}Erro na execução:\n${errorLog}${COLORS.reset}\n`);
-              console.log(`${COLORS.dim}🧟‍♂️ [IA Self-Healing: Analisando o erro e gerando correção...]${COLORS.reset}`);
-              messages.push({ 
-                role: "system", 
-                content: `O comando '${finalCmd}' falhou com este erro:\n\`\`\`\n${errorLog}\n\`\`\`\nAnalise o erro, corrija o que for necessário (criando um patch de código ou sugerindo um comando diferente) e tente resolver autonomamente.` 
-              });
-              aiThinking = true; // RESTART LOOP PARA AUTO-CURA
-              break; // Só lida com um erro de bash por vez
-            }
-          }
+          const result = await runBashCommand(cmd, {
+            confirmLabel: 'Executar o comando sugerido acima?',
+            confirmFeedbackMsg: 'O usuário rejeitou o comando e disse',
+            messages, aiFullMessage,
+            pushAssistantFirst: false,
+            feedbackToAI: false,
+            selfHealing: true,
+          });
+          if (result.shouldBreak) { aiThinking = result.aiThinking; break; }
         }
 
         // --- Skill Auto-Creation ---
