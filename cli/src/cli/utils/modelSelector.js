@@ -1,6 +1,5 @@
 const api = require("../api/client");
-const { prompt } = require("./input");
-const { clearScreen } = require("./display");
+const { selectMenu } = require("./input");
 
 // Provider alias order: OAuth first, then API Key (matches ModelSelectModal)
 const PROVIDER_ALIAS_ORDER = [
@@ -55,7 +54,7 @@ async function getAvailableModelsGrouped() {
 }
 
 /**
- * Display model list and prompt for selection
+ * Display model list with arrow-key navigation and prompt for selection.
  * @param {string} title - Title to display
  * @param {string} currentValue - Current selected value (optional)
  * @param {Object} options - { excludeCombos?: boolean }
@@ -66,66 +65,42 @@ async function selectModelFromList(title, currentValue = "", options = {}) {
   const { combos: rawCombos, groups } = await getAvailableModelsGrouped();
   const combos = excludeCombos ? [] : rawCombos;
 
-  const totalModels = combos.length + Object.values(groups).flat().length;
-  if (totalModels === 0) {
-    return null;
-  }
-  
-  // Build flat list for selection
-  const allModels = [];
-  
-  // Display
-  clearScreen();
-  console.log(`\n🎯 ${title}`);
-  console.log("=".repeat(50));
-  if (currentValue) {
-    console.log(`Current: ${currentValue}\n`);
-  } else {
-    console.log();
-  }
-  
-  let idx = 1;
-  
-  // Combos first (skipped when excludeCombos is true)
+  // Flat list: model IDs in order (parallel to menuItems)
+  const allModelIds = [];
+  const menuItems    = [];
+
+  // Combos primeiro
   if (combos.length > 0) {
-    console.log("[Combos]");
     combos.forEach(combo => {
-      console.log(`  ${idx}. ${combo}`);
-      allModels.push(combo);
-      idx++;
+      allModelIds.push(combo);
+      menuItems.push({ label: `${combo}  (Combo)`, icon: "🔀" });
     });
-    console.log();
   }
-  
-  // Provider groups in order (by alias)
+
+  // Providers em ordem canônica
   const sortedProviders = Object.keys(groups).sort((a, b) => {
-    const idxA = PROVIDER_ALIAS_ORDER.indexOf(a);
-    const idxB = PROVIDER_ALIAS_ORDER.indexOf(b);
-    return (idxA === -1 ? 999 : idxA) - (idxB === -1 ? 999 : idxB);
+    const ia = PROVIDER_ALIAS_ORDER.indexOf(a);
+    const ib = PROVIDER_ALIAS_ORDER.indexOf(b);
+    return (ia === -1 ? 999 : ia) - (ib === -1 ? 999 : ib);
   });
-  
+
   sortedProviders.forEach(provider => {
     const providerName = PROVIDER_ALIAS_NAMES[provider] || provider;
-    console.log(`[${providerName}]`);
     groups[provider].forEach(model => {
-      console.log(`  ${idx}. ${model}`);
-      allModels.push(model);
-      idx++;
+      allModelIds.push(model);
+      menuItems.push({ label: `${model}  (${providerName})`, icon: "·" });
     });
-    console.log();
   });
-  
-  console.log("  0. Cancel\n");
-  
-  // Prompt for number input
-  const input = await prompt("Enter number: ");
-  const num = parseInt(input, 10);
-  
-  if (isNaN(num) || num === 0 || num < 0 || num > allModels.length) {
-    return null;
-  }
-  
-  return allModels[num - 1];
+
+  if (menuItems.length === 0) return null;
+
+  // Pré-selecionar o modelo atual, se existir na lista
+  const defaultIndex = Math.max(0, allModelIds.indexOf(currentValue));
+  const subtitle = currentValue ? `Atual: ${currentValue}` : "Use ↑↓ para navegar, Enter para confirmar";
+
+  const selectedIdx = await selectMenu(title, menuItems, defaultIndex, subtitle);
+  if (selectedIdx === -1) return null;
+  return allModelIds[selectedIdx];
 }
 
 module.exports = {
@@ -134,3 +109,4 @@ module.exports = {
   PROVIDER_ALIAS_ORDER,
   PROVIDER_ALIAS_NAMES
 };
+

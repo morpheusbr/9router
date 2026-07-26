@@ -107,64 +107,72 @@ function makeRequest(method, path, body = null) {
       options.headers["Content-Length"] = Buffer.byteLength(bodyString);
     }
 
-    const req = httpModule.request(options, (res) => {
-      let data = "";
+    const executeRequest = (isRetry = false) => {
+      const req = httpModule.request(options, (res) => {
+        let data = "";
 
-      res.on("data", (chunk) => {
-        data += chunk;
-      });
+        res.on("data", (chunk) => {
+          data += chunk;
+        });
 
-      res.on("end", () => {
-        try {
-          const parsed = data ? JSON.parse(data) : {};
-          
-          // Check if response indicates error
-          if (res.statusCode >= 400 || parsed.error) {
+        res.on("end", () => {
+          try {
+            const parsed = data ? JSON.parse(data) : {};
+            
+            // Check if response indicates error
+            if (res.statusCode >= 400 || parsed.error) {
+              resolve({
+                success: false,
+                error: parsed.error || `HTTP ${res.statusCode}`,
+                statusCode: res.statusCode,
+              });
+            } else {
+              resolve({
+                success: true,
+                data: parsed,
+                statusCode: res.statusCode,
+              });
+            }
+          } catch (err) {
             resolve({
               success: false,
-              error: parsed.error || `HTTP ${res.statusCode}`,
-              statusCode: res.statusCode,
-            });
-          } else {
-            resolve({
-              success: true,
-              data: parsed,
-              statusCode: res.statusCode,
+              error: `Failed to parse response: ${err.message}`,
             });
           }
-        } catch (err) {
-          resolve({
-            success: false,
-            error: `Failed to parse response: ${err.message}`,
-          });
+        });
+      });
+
+      req.on("error", async (err) => {
+        if ((err.code === "ECONNREFUSED" || err.code === "ECONNRESET") && !isRetry) {
+          await new Promise((r) => setTimeout(r, 500));
+          return executeRequest(true);
         }
+        resolve({
+          success: false,
+          error: `Network error: ${err.message}`,
+        });
       });
-    });
 
-    req.on("error", (err) => {
-      resolve({
-        success: false,
-        error: `Network error: ${err.message}`,
+      req.on("timeout", () => {
+        req.destroy();
+        resolve({
+          success: false,
+          error: "Request timeout",
+        });
       });
-    });
 
-    req.on("timeout", () => {
-      req.destroy();
-      resolve({
-        success: false,
-        error: "Request timeout",
-      });
-    });
+      // Set timeout (30 seconds)
+      req.setTimeout(30000);
 
-    // Set timeout (30 seconds)
-    req.setTimeout(30000);
+      // Write body if present
+      if (body && (method === "POST" || method === "PUT" || method === "PATCH")) {
+        req.write(JSON.stringify(body));
+      }
 
-    // Write body if present
-    if (body && (method === "POST" || method === "PUT" || method === "PATCH")) {
-      req.write(JSON.stringify(body));
-    }
+      req.end();
+    };
 
-    req.end();
+    executeRequest(false);
   });
 }
 

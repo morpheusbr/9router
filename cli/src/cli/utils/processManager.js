@@ -157,11 +157,14 @@ function killAllAppProcesses(appPort) {
 
       if (pids.length > 0) {
         pids.forEach(pid => {
+          const safePid = parseInt(pid, 10);
+          if (isNaN(safePid) || safePid <= 0) return; // rejeitar PIDs inválidos
           try {
             if (platform === "win32") {
-              execSync(`taskkill /F /PID ${pid} 2>nul`, { stdio: 'ignore', shell: true, windowsHide: true, timeout: 3000 });
+              execSync(`taskkill /F /PID ${safePid} 2>nul`, { stdio: 'ignore', shell: true, windowsHide: true, timeout: 3000 });
             } else {
-              execSync(`kill -9 ${pid} 2>/dev/null`, { stdio: 'ignore', timeout: 3000 });
+              // process.kill sem shell — imune a injeção
+              process.kill(safePid, 'SIGKILL');
             }
           } catch (err) { }
         });
@@ -199,8 +202,11 @@ function killProcessOnPort(port) {
             encoding: 'utf8', stdio: ['pipe', 'pipe', 'ignore']
           }).trim();
           if (pidOutput) {
-            pid = pidOutput.split('\n')[0];
-            execSync(`kill -9 ${pid} 2>/dev/null`, { stdio: 'ignore', timeout: 3000 });
+            // Validar PID antes de usar — lsof pode retornar múltiplos PIDs
+            const safePid = parseInt(pidOutput.split('\n')[0], 10);
+            if (!isNaN(safePid) && safePid > 0) {
+              process.kill(safePid, 'SIGKILL'); // sem shell, sem injeção
+            }
           }
         } catch (e) { }
       }

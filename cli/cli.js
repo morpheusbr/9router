@@ -319,8 +319,10 @@ function startServer(updatePromise) {
       if (server.pid) {
         process.kill(server.pid, "SIGKILL");
       }
-      // Also try to kill process group
-      process.kill(-server.pid, "SIGKILL");
+      // Also try to kill process group (only if pid exists)
+      if (server.pid) {
+        try { process.kill(-server.pid, "SIGKILL"); } catch (e) {}
+      }
     } catch (e) { }
   }
 
