@@ -170,17 +170,33 @@ Commands:
     }
   }
 
+  // --- Early detection: server already running (e.g. PM2 or another CLI instance) ---
+  {
+    const displayHostEarly = host === DEFAULT_HOST ? "localhost" : host;
+    const earlyUrl = `http://${displayHostEarly}:${port}/dashboard`;
+    const earlyReady = await waitServerReady(port, { timeoutMs: 1500, intervalMs: 100 });
+    if (earlyReady) {
+      if (!noBrowser) {
+        console.log(`\x1b[36mℹ Servidor já ativo na porta ${port}. Abrindo dashboard...\x1b[0m`);
+        openBrowser(earlyUrl);
+      } else {
+        console.log(`\x1b[36mℹ Servidor já ativo na porta ${port}. Acesse: ${earlyUrl}\x1b[0m`);
+      }
+      process.exit(0);
+    }
+  }
+
   // Auto-relaunch after update fallback
   if (skipUpdate && !trayMode && !process.stdin.isTTY) {
     trayMode = true;
     process.env.TRAY_MODE = "1";
   }
 
-  const { 
-    killAllAppProcesses, 
-    killProcessOnPort, 
-    killProxyByPidFile, 
-    killTunnelByPidFile 
+  const {
+    killAllAppProcesses,
+    killProcessOnPort,
+    killProxyByPidFile,
+    killTunnelByPidFile
   } = require("./src/cli/utils/processManager");
 
   // Onboarding wizard for first run
