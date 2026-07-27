@@ -77,10 +77,28 @@ async function processPatches(aiFullMessage, messages) {
           fs.copyFileSync(fullPath, fullPath + '.bak');
           content = content.replace(oldCode, newCode);
           fs.writeFileSync(fullPath, content);
-          console.log(`${COLORS.green}✅ Patch cirúrgico aplicado! ${COLORS.dim}(backup em ${filePath}.bak — use /undo para reverter)${COLORS.reset}\n`);
+          console.log(`${COLORS.green}✅ Patch cirúrgico aplicado com Match Exato! ${COLORS.dim}(backup em ${filePath}.bak — use /undo para reverter)${COLORS.reset}\n`);
           try { execSync("rtk graphify update .", { cwd: process.cwd(), stdio: "ignore" }); } catch(e) {}
         } else {
-          console.log(`${COLORS.red}⚠️ Falha: O código 'antigo' exato não foi encontrado no arquivo. Verifique indentação.${COLORS.reset}\n`);
+          // --- FUZZY MATCHING (Whitespace-Agnostic) ---
+          console.log(`${COLORS.yellow}⚠️ Match exato falhou. Tentando Fuzzy Match (ignorando quebras de linha e espaços)...${COLORS.reset}`);
+          const escapeRegex = (string) => string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+          // Substitui blocos de espaços/quebras por \s+ (1 ou mais espaços)
+          let fuzzyPattern = escapeRegex(oldCode).replace(/\s+/g, '\\s+');
+          // Permite que os espaços no começo e fim sejam opcionais
+          fuzzyPattern = fuzzyPattern.replace(/^\\s\+/, '\\s*').replace(/\\s\+$/, '\\s*');
+          
+          const regex = new RegExp(fuzzyPattern);
+          
+          if (regex.test(content)) {
+            fs.copyFileSync(fullPath, fullPath + '.bak');
+            content = content.replace(regex, newCode);
+            fs.writeFileSync(fullPath, content);
+            console.log(`${COLORS.green}✅ Patch cirúrgico salvo via Fuzzy Match! ${COLORS.dim}(backup em ${filePath}.bak — use /undo para reverter)${COLORS.reset}\n`);
+            try { execSync("rtk graphify update .", { cwd: process.cwd(), stdio: "ignore" }); } catch(e) {}
+          } else {
+            console.log(`${COLORS.red}⛔ Falha Crítica: O código 'antigo' não foi encontrado nem com Fuzzy Match. A IA gerou um bloco que não existe no arquivo.${COLORS.reset}\n`);
+          }
         }
       } catch (e) {
         console.log(`${COLORS.red}Erro: ${e.message}${COLORS.reset}`);

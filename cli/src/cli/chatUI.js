@@ -106,6 +106,21 @@ async function runBashCommand(rawCmd, opts = {}) {
     return { aiThinking: false, shouldBreak: true };
   }
 
+  // --- ANTI-BASH DESTRUCT GUARDRAIL ---
+  // Bloqueia tentativas de usar shell cego para editar/apagar código-fonte diretamente
+  const destRegex = /(sed\s+-i|awk\s|cat\s+<<|cat\s+.*?>|echo\s+.*?>|tee\s|rm\s+.*?\.)/i;
+  const extRegex = /\.(ts|tsx|js|jsx|json|css|md|html)\b/i;
+  
+  if (destRegex.test(rawCmd) && extRegex.test(rawCmd) && !rawCmd.includes("scripts/")) {
+    console.log(`\n${COLORS.red}🛑 [Anti-Bash Destruct]: Comando shell destrutivo bloqueado pelo Guardrail.${COLORS.reset}`);
+    logAudit("BASH_DESTRUCT_BLOCKED", { command: rawCmd });
+    messages.push({
+      role: 'system',
+      content: `[ACESSO BASH NEGADO]: Operação bloqueada pelo guardrail Anti-Destruição.\nVocê tentou usar shell scripting (sed, awk, redirecionamentos > ou rm) em arquivos de código fonte. O Bash é altamente destrutivo para arquivos TS/JS, pois frequentemente destrói aspas, indentação ou variáveis.\n\nREGRAS:\n1. Para editar código existente: USE EXCLUSIVAMENTE A TAG <patch path="..."></patch>.\n2. Para criar arquivos novos ou testar lógicas complexas: Crie um script Node.js na pasta temporária 'scripts/'.\n\nAbandone o Bash para esta tarefa, reavalie sua abordagem e tente novamente usando as ferramentas corretas.`
+    });
+    return { aiThinking: true, shouldBreak: true };
+  }
+
   createGitCheckpoint();
   logAudit("COMMAND_EXECUTE", { command: rawCmd, approved: true });
 
@@ -121,10 +136,36 @@ async function runBashCommand(rawCmd, opts = {}) {
   }
   if (!shouldRun) return { aiThinking: false, shouldBreak: false };
 
-  // Injetar prefixo rtk em linhas que ainda não o têm
+  // Injetar prefixo rtk APENAS em comandos e fora de heredocs (evita corromper código)
+  let inHereDoc = false;
+  let hereDocMarker = "";
+  
   const finalCmd = rawCmd.split('\n').map(line => {
     const t = line.trim();
-    if (t && !t.startsWith('#') && !t.startsWith('rtk ')) return 'rtk ' + t;
+    if (!t || t.startsWith('#')) return line;
+    
+    // Fim do heredoc
+    if (inHereDoc && t === hereDocMarker) {
+      inHereDoc = false;
+      return line;
+    }
+    // Dentro de heredoc
+    if (inHereDoc) return line;
+
+    // Início de heredoc
+    const hereDocMatch = t.match(/<<\s*-?\s*['"]?([a-zA-Z0-9_-]+)['"]?/);
+    if (hereDocMatch) {
+      inHereDoc = true;
+      hereDocMarker = hereDocMatch[1];
+    }
+
+    // Lista segura de comandos comuns (se não for um desses, confia no LLM)
+    const knownCommands = /^(npm|npx|node|git|grep|cat|ls|rm|cd|pwd|cp|mv|sed|awk|curl|wget|docker|pm2|graphify|yarn|pnpm|bun|echo|mkdir|touch|chmod|chown|sudo|apt|apt-get|find|tar|unzip|zip)\b/;
+    
+    if (!t.startsWith('rtk ') && knownCommands.test(t)) {
+      return line.replace(/^(\s*)/, '$1rtk ');
+    }
+    
     return line;
   }).join('\n');
 
@@ -171,6 +212,46 @@ async function runBashCommand(rawCmd, opts = {}) {
     } else {
       console.log(output);
     }
+
+    // --- AUTO-VERIFICATION & ROLLBACK (God Mode Guardrail) ---
+    if (selfHealing || feedbackToAI) {
+      try {
+        const gitStatus = require("child_process").execSync("git status --porcelain", { encoding: "utf8" });
+        if (gitStatus.includes(".ts") || gitStatus.includes(".tsx")) {
+          console.log(`\n${COLORS.cyan}🔍 [Auto-Guardrail] Alterações em TypeScript detectadas. Validando integridade...${COLORS.reset}`);
+          try {
+            // Tenta compilar os tsconfigs encontrados no nível 1 e 2
+            let tsconfigs = [];
+            try {
+               const findRes = require("child_process").execSync("find . -maxdepth 2 -name 'tsconfig*.json' -not -path '*/node_modules/*'", { encoding: "utf8" });
+               tsconfigs = findRes.trim().split('\\n').filter(Boolean);
+            } catch (e) {}
+            
+            if (tsconfigs.length === 0 && fs.existsSync('tsconfig.json')) tsconfigs.push('tsconfig.json');
+            
+            for (const tsc of tsconfigs) {
+               require("child_process").execSync(`npx tsc --noEmit --project ${tsc}`, { encoding: "utf8", stdio: 'pipe' });
+            }
+            console.log(`${COLORS.green}✅ [Auto-Guardrail] O código gerado pela IA está limpo e sem erros TypeScript!${COLORS.reset}`);
+          } catch (tscErr) {
+            const errStr = tscErr.stdout ? tscErr.stdout.toString() : tscErr.toString();
+            console.log(`${COLORS.red}❌ [Auto-Guardrail] A IA gerou código com erro de TypeScript! Revertendo a ação...${COLORS.reset}`);
+            
+            rollbackGitCheckpoint();
+            
+            const errorContext = errStr.substring(0, 2000);
+            messages.push({
+              role: 'system',
+              content: `⚠️ ALERTA DE SEGURANÇA: Seu último comando introduziu erros de tipagem/sintaxe. O guardrail REVERTEU a sua edição automaticamente.\n\nERRO DO COMPILADOR:\n\`\`\`\n${errorContext}\n\`\`\`\n\nPor favor, conserte a sua lógica (verifique imports faltando, uso de 'any', ou identação) e aplique a correção novamente. Lembre-se da política Zero ANY.`
+            });
+            return { aiThinking: true, shouldBreak: true };
+          }
+        }
+      } catch (e) {
+        // Ignora caso não seja repositório git ou outro erro menor
+      }
+    }
+
     if (feedbackToAI) {
       const sanitizedOut = sanitizePromptContext(output.substring(0, 50000));
       messages.push({ role: 'system', content: `Resultado:\n\`\`\`\n${sanitizedOut}\n\`\`\`\nContinue.` });
