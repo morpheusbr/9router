@@ -131,7 +131,7 @@ Commands:
     }
 
     // Check if server is already running on this port (e.g., PM2 or background service)
-    const isAlreadyRunning = await waitServerReady(port, { timeoutMs: 1000, intervalMs: 100 });
+    const isAlreadyRunning = await waitServerReady(port, { timeoutMs: 2500, intervalMs: 100 });
     let serverProcess = null;
 
     if (isAlreadyRunning) {
@@ -214,7 +214,8 @@ Commands:
     }
 
     waitServerReady(port).then(async (ready) => {
-      if (!ready && !isAlreadyRunning) {
+      const active = ready || (await waitServerReady(port, { timeoutMs: 2000 }));
+      if (!active) {
         console.error(`\x1b[31m❌ Falha ao iniciar o servidor na porta ${port}.\x1b[0m`);
         cleanup();
         process.exit(1);

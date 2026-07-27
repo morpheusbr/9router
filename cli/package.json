@@ -1,6 +1,6 @@
 {
   "name": "hiperrouter",
-  "version": "0.5.46",
+  "version": "0.5.48",
   "description": "HiperRouter CLI - Start and manage HiperRouter AI Agent & Server",
   "bin": {
     "hiperrouter": "./cli.js",
