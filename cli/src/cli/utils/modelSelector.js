@@ -1,83 +1,67 @@
 const api = require("../api/client");
-const { selectMenu, commandPalette, fuzzyMatch, COLORS } = require("./input");
+const { selectMenu, COLORS } = require("./input");
 const { DEFAULT_PORT } = require("../constants");
 const configStore = require("./configStore");
 
-// Provider alias order: OAuth first, then API Key (matches ModelSelectModal)
+const PROVIDER_ALIAS_NAMES = {
+  cc: "Claude Code", ag: "Antigravity", cx: "OpenAI Codex", if: "iFlow AI",
+  qw: "Qwen Code", gc: "Gemini CLI", gh: "GitHub Copilot", kr: "Kiro AI",
+  openrouter: "OpenRouter", glm: "GLM Coding", kimi: "Kimi Coding",
+  minimax: "Minimax Coding", openai: "OpenAI", anthropic: "Anthropic",
+  gemini: "Gemini"
+};
+
+const PROVIDER_ICONS = {
+  cc: "🟣", ag: "🚀", cx: "🟢", if: "🔵", qw: "🟠", gc: "💎", gh: "🐙",
+  kr: "🔶", openrouter: "🌐", glm: "🧠", kimi: "🌙", minimax: "⚡",
+  openai: "🤖", anthropic: "🏛️", gemini: "✨"
+};
+
 const PROVIDER_ALIAS_ORDER = [
   "cc", "ag", "cx", "if", "qw", "gc", "gh", "kr",
   "openrouter", "glm", "kimi", "minimax", "openai", "anthropic", "gemini"
 ];
 
-// Alias to display name mapping
-const PROVIDER_ALIAS_NAMES = {
-  cc: "Claude Code",
-  ag: "Antigravity", 
-  cx: "OpenAI Codex",
-  if: "iFlow AI",
-  qw: "Qwen Code",
-  gc: "Gemini CLI",
-  gh: "GitHub Copilot",
-  kr: "Kiro AI",
-  openrouter: "OpenRouter",
-  glm: "GLM Coding",
-  kimi: "Kimi Coding",
-  minimax: "Minimax Coding",
-  openai: "OpenAI",
-  anthropic: "Anthropic",
-  gemini: "Gemini"
-};
-
-/**
- * Check if there are any active provider connections.
- * @returns {Promise<boolean>}
- */
-async function hasConnectedProviders() {
+async function getConnectedProviders() {
   const result = await api.getProviders();
-  if (!result.success) return false;
-  const connections = result.data?.connections || [];
-  return connections.some(c => c.isActive !== false);
+  if (!result.success) return [];
+  return (result.data?.connections || []).filter(c => c.isActive !== false);
 }
 
-/**
- * Get all available models grouped by provider + combos
- * @returns {Promise<{combos: Array, groups: Object}>}
- */
 async function getAvailableModelsGrouped() {
   const result = await api.getAvailableModels();
   if (!result.success) return { combos: [], groups: {} };
-  
+
   const models = result.data?.data || [];
   const combos = [];
   const groups = {};
-  
+
   models.forEach(m => {
     if (m.owned_by === "combo") {
       combos.push(m.id);
     } else {
       const provider = m.owned_by;
-      if (!groups[provider]) {
-        groups[provider] = [];
-      }
+      if (!groups[provider]) groups[provider] = [];
       groups[provider].push(m.id);
     }
   });
-  
+
   return { combos, groups };
 }
 
-/**
- * Display model list with arrow-key navigation, type-ahead filter, and favorites.
- * @param {string} title - Title to display
- * @param {string} currentValue - Current selected value (optional)
- * @param {Object} options - { excludeCombos?: boolean, port?: number }
- * @returns {Promise<string|null>} Selected model ID or null if cancelled
- */
+function sortProviders(providers) {
+  return providers.sort((a, b) => {
+    const ia = PROVIDER_ALIAS_ORDER.indexOf(a);
+    const ib = PROVIDER_ALIAS_ORDER.indexOf(b);
+    return (ia === -1 ? 999 : ia) - (ib === -1 ? 999 : ib);
+  });
+}
+
 async function selectModelFromList(title, currentValue = "", options = {}) {
   const { excludeCombos = false, port } = options;
 
-  const connected = await hasConnectedProviders();
-  if (!connected) {
+  const connections = await getConnectedProviders();
+  if (connections.length === 0) {
     const p = port || DEFAULT_PORT;
     console.log(`\n${COLORS.yellow}Nenhum provider conectado.${COLORS.reset}`);
     console.log(`${COLORS.dim}Acesse o dashboard para adicionar um provider:${COLORS.reset}`);
@@ -88,82 +72,99 @@ async function selectModelFromList(title, currentValue = "", options = {}) {
   const { combos: rawCombos, groups } = await getAvailableModelsGrouped();
   const combos = excludeCombos ? [] : rawCombos;
 
-  // Flat list: model IDs in order (parallel to menuItems)
-  const allModelIds = [];
-  const menuItems = [];
+  const connectedAliases = new Set(connections.map(c => c.provider));
+  const connectedGroups = {};
+  for (const [alias, models] of Object.entries(groups)) {
+    if (connectedAliases.has(alias)) {
+      connectedGroups[alias] = models;
+    }
+  }
 
-  // Favorites from config
+  const sortedProviders = sortProviders(Object.keys(connectedGroups));
+
   const favorites = configStore.getArray("favoriteModels");
   const recentModels = configStore.getArray("recentModels");
+  const allAvailable = [...combos, ...Object.values(connectedGroups).flat()];
+  const validFavorites = favorites.filter(m => allAvailable.includes(m));
+  const validRecent = recentModels
+    .filter(m => allAvailable.includes(m) && !validFavorites.includes(m))
+    .slice(0, 3);
 
-  // Favorites section
-  const favModels = favorites.filter(m => {
-    // Only show favorites that are actually available
-    return combos.includes(m) || Object.values(groups).some(g => g.includes(m));
-  });
-  if (favModels.length > 0) {
-    favModels.forEach(model => {
-      allModelIds.push(model);
-      menuItems.push({ label: `${model}  ★`, icon: "★" });
-    });
+  // --- Build provider list (level 1) ---
+  const providerIds = [];
+  const providerItems = [];
+
+  if (validFavorites.length > 0) {
+    providerIds.push("__favorites__");
+    providerItems.push({ label: `★ Favorites  (${validFavorites.length})`, icon: "★" });
   }
-
-  // Combos
+  if (validRecent.length > 0) {
+    providerIds.push("__recent__");
+    providerItems.push({ label: `↻ Recent  (${validRecent.length})`, icon: "↻" });
+  }
   if (combos.length > 0) {
-    combos.forEach(combo => {
-      if (!allModelIds.includes(combo)) {
-        allModelIds.push(combo);
-        menuItems.push({ label: `${combo}  (Combo)`, icon: "🔀" });
-      }
-    });
+    providerIds.push("__combos__");
+    providerItems.push({ label: `Combos  (${combos.length})`, icon: "🔀" });
   }
 
-  // Providers em ordem canônica
-  const sortedProviders = Object.keys(groups).sort((a, b) => {
-    const ia = PROVIDER_ALIAS_ORDER.indexOf(a);
-    const ib = PROVIDER_ALIAS_ORDER.indexOf(b);
-    return (ia === -1 ? 999 : ia) - (ib === -1 ? 999 : ib);
+  sortedProviders.forEach(alias => {
+    const name = PROVIDER_ALIAS_NAMES[alias] || alias;
+    const icon = PROVIDER_ICONS[alias] || "·";
+    const count = connectedGroups[alias].length;
+    providerIds.push(alias);
+    providerItems.push({ label: `${name}  (${count})`, icon });
   });
 
-  sortedProviders.forEach(provider => {
-    const providerName = PROVIDER_ALIAS_NAMES[provider] || provider;
-    groups[provider].forEach(model => {
-      if (!allModelIds.includes(model)) {
-        allModelIds.push(model);
-        const isRecent = recentModels.includes(model);
-        menuItems.push({ label: `${model}  (${providerName})${isRecent ? " ↻" : ""}`, icon: "·" });
-      }
-    });
-  });
-
-  if (menuItems.length === 0) {
+  if (providerItems.length === 0) {
     const p = port || DEFAULT_PORT;
-    console.log(`\n${COLORS.yellow}Nenhum modelo disponível dos providers conectados.${COLORS.reset}`);
-    console.log(`${COLORS.dim}Verifique os providers no dashboard:${COLORS.reset}`);
-    console.log(`${COLORS.cyan}http://localhost:${p}/dashboard/providers${COLORS.reset}\n`);
+    console.log(`\n${COLORS.yellow}Nenhum modelo disponível.${COLORS.reset}`);
+    console.log(`${COLORS.dim}Dashboard: ${COLORS.cyan}http://localhost:${p}/dashboard/providers${COLORS.reset}\n`);
     return null;
   }
 
-  // Pré-selecionar o modelo atual, se existir na lista
-  const defaultIndex = Math.max(0, allModelIds.indexOf(currentValue));
-  const subtitle = currentValue
-    ? `Atual: ${currentValue} | ↑↓ navigate, Enter select, / filter`
-    : "↑↓ navigate, Enter select, type to filter";
-
-  const selectedIdx = await selectMenu(title, menuItems, defaultIndex, subtitle);
-  if (selectedIdx === -1) return null;
-
-  const selected = allModelIds[selectedIdx];
-
-  // Track usage: add to recent, remove from favorites prompt
-  configStore.appendToArray("recentModels", selected, 5);
-
-  // Ask to favorite if not already
-  if (!favorites.includes(selected)) {
-    // Non-blocking hint — don't ask every time, just track
-    // User can manually favorite via /model → hold 'f'
+  let defaultIdx = 0;
+  if (currentValue) {
+    const currentProvider = currentValue.split("/")[0];
+    const idx = providerIds.indexOf(currentProvider);
+    if (idx !== -1) defaultIdx = idx;
   }
 
+  const subtitle = currentValue
+    ? `Atual: ${currentValue} | type to filter`
+    : "type to filter, ↑↓ navigate, Enter select";
+
+  const selProvider = await selectMenu(title, providerItems, defaultIdx, subtitle);
+  if (selProvider === -1) return null;
+
+  const selectedId = providerIds[selProvider];
+
+  if (selectedId === "__favorites__") return pickFromList("★ Favorites", validFavorites, currentValue, recentModels);
+  if (selectedId === "__recent__") return pickFromList("↻ Recent", validRecent, currentValue, recentModels);
+  if (selectedId === "__combos__") return pickFromList("Combos", combos, currentValue, recentModels);
+
+  const providerModels = connectedGroups[selectedId] || [];
+  const providerName = PROVIDER_ALIAS_NAMES[selectedId] || selectedId;
+  return pickFromList(`${PROVIDER_ICONS[selectedId] || "·"} ${providerName}`, providerModels, currentValue, recentModels);
+}
+
+async function pickFromList(title, modelIds, currentValue, recentModels) {
+  if (modelIds.length === 0) return null;
+  if (modelIds.length === 1) {
+    configStore.appendToArray("recentModels", modelIds[0], 10);
+    return modelIds[0];
+  }
+
+  const items = modelIds.map(id => {
+    const isRecent = recentModels.includes(id);
+    return { label: `${id}${isRecent ? "  ↻" : ""}`, icon: "·" };
+  });
+
+  const defaultIdx = Math.max(0, modelIds.indexOf(currentValue));
+  const idx = await selectMenu(title, items, defaultIdx, "type to filter, ↑↓ navigate, Enter select");
+  if (idx === -1) return null;
+
+  const selected = modelIds[idx];
+  configStore.appendToArray("recentModels", selected, 10);
   return selected;
 }
 
@@ -173,4 +174,3 @@ module.exports = {
   PROVIDER_ALIAS_ORDER,
   PROVIDER_ALIAS_NAMES
 };
-
