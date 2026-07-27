@@ -1,5 +1,14 @@
 const api = require("../api/client");
 const { selectMenu } = require("./input");
+const { DEFAULT_PORT } = require("../constants");
+
+const COLORS = {
+  reset: "\x1b[0m",
+  dim: "\x1b[2m",
+  cyan: "\x1b[36m",
+  yellow: "\x1b[33m",
+  green: "\x1b[32m",
+};
 
 // Provider alias order: OAuth first, then API Key (matches ModelSelectModal)
 const PROVIDER_ALIAS_ORDER = [
@@ -25,6 +34,17 @@ const PROVIDER_ALIAS_NAMES = {
   anthropic: "Anthropic",
   gemini: "Gemini"
 };
+
+/**
+ * Check if there are any active provider connections.
+ * @returns {Promise<boolean>}
+ */
+async function hasConnectedProviders() {
+  const result = await api.getProviders();
+  if (!result.success) return false;
+  const connections = result.data?.connections || [];
+  return connections.some(c => c.isActive !== false);
+}
 
 /**
  * Get all available models grouped by provider + combos
@@ -57,11 +77,21 @@ async function getAvailableModelsGrouped() {
  * Display model list with arrow-key navigation and prompt for selection.
  * @param {string} title - Title to display
  * @param {string} currentValue - Current selected value (optional)
- * @param {Object} options - { excludeCombos?: boolean }
+ * @param {Object} options - { excludeCombos?: boolean, port?: number }
  * @returns {Promise<string|null>} Selected model ID or null if cancelled
  */
 async function selectModelFromList(title, currentValue = "", options = {}) {
-  const { excludeCombos = false } = options;
+  const { excludeCombos = false, port } = options;
+
+  const connected = await hasConnectedProviders();
+  if (!connected) {
+    const p = port || DEFAULT_PORT;
+    console.log(`\n${COLORS.yellow}Nenhum provider conectado.${COLORS.reset}`);
+    console.log(`${COLORS.dim}Acesse o dashboard para adicionar um provider:${COLORS.reset}`);
+    console.log(`${COLORS.cyan}http://localhost:${p}/dashboard/providers${COLORS.reset}\n`);
+    return null;
+  }
+
   const { combos: rawCombos, groups } = await getAvailableModelsGrouped();
   const combos = excludeCombos ? [] : rawCombos;
 
@@ -92,7 +122,13 @@ async function selectModelFromList(title, currentValue = "", options = {}) {
     });
   });
 
-  if (menuItems.length === 0) return null;
+  if (menuItems.length === 0) {
+    const p = port || DEFAULT_PORT;
+    console.log(`\n${COLORS.yellow}Nenhum modelo disponível dos providers conectados.${COLORS.reset}`);
+    console.log(`${COLORS.dim}Verifique os providers no dashboard:${COLORS.reset}`);
+    console.log(`${COLORS.cyan}http://localhost:${p}/dashboard/providers${COLORS.reset}\n`);
+    return null;
+  }
 
   // Pré-selecionar o modelo atual, se existir na lista
   const defaultIndex = Math.max(0, allModelIds.indexOf(currentValue));

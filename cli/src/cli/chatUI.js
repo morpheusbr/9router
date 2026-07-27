@@ -239,7 +239,7 @@ function getHistoryFilePath() {
 }
 
 async function startChatUI(port) {
-  let model = await selectModelFromList("Select Model for Chat", "", { excludeCombos: false });
+  let model = await selectModelFromList("Select Model for Chat", "", { excludeCombos: false, port });
   if (!model) return;
 
   const keysResult = await api.getApiKeys();
@@ -599,7 +599,7 @@ código novo (o que vai entrar no lugar)
       finalUserMessage = `Logs de erro PM2:\n\`\`\`\n${errorLogs}\n\`\`\`\n${rawUserMessage}`;
       console.log(`${COLORS.dim}[Modo Debug - Capturando PM2 logs...]${COLORS.reset}`);
     } else if (lowerMsg === '/model') {
-      const newModel = await selectModelFromList("Trocar de Modelo", model, { excludeCombos: false });
+      const newModel = await selectModelFromList("Trocar de Modelo", model, { excludeCombos: false, port });
       if (newModel && newModel !== model) {
         model = newModel;
         // Perguntar se quer manter o histórico com o novo modelo
