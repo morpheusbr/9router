@@ -43,6 +43,9 @@ function isTraySupported() {
  */
 function initTray(options) {
   if (!isTraySupported()) {
+    if (process.platform === "linux" && !process.env.DISPLAY) {
+      process.stderr.write("[HiperRouter] tray unavailable: no DISPLAY (headless Linux)\n");
+    }
     return null;
   }
 
