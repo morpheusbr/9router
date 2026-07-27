@@ -7,7 +7,7 @@ function getAppDataDir() {
   return path.resolve(__dirname, "../../..", ".HiperRouter");
 }
 
-// Kill PID from file (best-effort, removes file after)
+// Kill PID from file — SIGTERM first, SIGKILL after 3s if still alive
 function killByPidFile(pidFile) {
   try {
     if (!fs.existsSync(pidFile)) return;
@@ -15,9 +15,15 @@ function killByPidFile(pidFile) {
     if (!pid) return;
     try {
       if (process.platform === "win32") {
-        execSync(`taskkill /F /T /PID ${pid}`, { stdio: "ignore", windowsHide: true, timeout: 3000 });
+        execSync(`taskkill /T /PID ${pid}`, { stdio: "ignore", windowsHide: true, timeout: 3000 });
+        if (!waitForExit(pid, 3000)) {
+          execSync(`taskkill /F /T /PID ${pid}`, { stdio: "ignore", windowsHide: true, timeout: 3000 });
+        }
       } else {
-        process.kill(pid, "SIGKILL");
+        process.kill(pid, "SIGTERM");
+        if (!waitForExit(pid, 3000)) {
+          process.kill(pid, "SIGKILL");
+        }
       }
     } catch { }
     try { fs.unlinkSync(pidFile); } catch { }
@@ -156,15 +162,22 @@ function killAllAppProcesses(appPort) {
       }
 
       if (pids.length > 0) {
+        const TERM_TIMEOUT = 3000;
         pids.forEach(pid => {
           const safePid = parseInt(pid, 10);
           if (isNaN(safePid) || safePid <= 0) return; // rejeitar PIDs inválidos
           try {
             if (platform === "win32") {
-              execSync(`taskkill /F /PID ${safePid} 2>nul`, { stdio: 'ignore', shell: true, windowsHide: true, timeout: 3000 });
+              execSync(`taskkill /PID ${safePid} 2>nul`, { stdio: 'ignore', shell: true, windowsHide: true, timeout: 3000 });
+              if (!waitForExit(safePid, TERM_TIMEOUT)) {
+                execSync(`taskkill /F /PID ${safePid} 2>nul`, { stdio: 'ignore', shell: true, windowsHide: true, timeout: 3000 });
+              }
             } else {
-              // process.kill sem shell — imune a injeção
-              process.kill(safePid, 'SIGKILL');
+              // SIGTERM primeiro — graceful shutdown
+              process.kill(safePid, 'SIGTERM');
+              if (!waitForExit(safePid, TERM_TIMEOUT)) {
+                process.kill(safePid, 'SIGKILL');
+              }
             }
           } catch (err) { }
         });

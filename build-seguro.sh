@@ -53,6 +53,11 @@ echo "🔄 Transferindo a nova versão compilada de volta para o diretório de p
 # Transfere o app compilado de volta para o diretório raiz
 # Usamos mkdir -p para garantir que a estrutura base exista
 mkdir -p "$PROD_DIR/cli"
+
+echo "🔧 Corrigindo caminhos absolutos do Next.js (Server Components Manifests)..."
+# Substitui o caminho temporário de build pelo caminho real em produção
+find "$BUILD_DIR/cli/app" -type f \( -name "*.js" -o -name "*.json" \) -exec sed -i "s|$BUILD_DIR|$PROD_DIR|g" {} +
+
 rsync -a --delete \
   "$BUILD_DIR/cli/app" "$PROD_DIR/cli/"
 

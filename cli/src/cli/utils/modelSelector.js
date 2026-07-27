@@ -1,14 +1,7 @@
 const api = require("../api/client");
-const { selectMenu } = require("./input");
+const { selectMenu, commandPalette, fuzzyMatch, COLORS } = require("./input");
 const { DEFAULT_PORT } = require("../constants");
-
-const COLORS = {
-  reset: "\x1b[0m",
-  dim: "\x1b[2m",
-  cyan: "\x1b[36m",
-  yellow: "\x1b[33m",
-  green: "\x1b[32m",
-};
+const configStore = require("./configStore");
 
 // Provider alias order: OAuth first, then API Key (matches ModelSelectModal)
 const PROVIDER_ALIAS_ORDER = [
@@ -74,7 +67,7 @@ async function getAvailableModelsGrouped() {
 }
 
 /**
- * Display model list with arrow-key navigation and prompt for selection.
+ * Display model list with arrow-key navigation, type-ahead filter, and favorites.
  * @param {string} title - Title to display
  * @param {string} currentValue - Current selected value (optional)
  * @param {Object} options - { excludeCombos?: boolean, port?: number }
@@ -97,13 +90,31 @@ async function selectModelFromList(title, currentValue = "", options = {}) {
 
   // Flat list: model IDs in order (parallel to menuItems)
   const allModelIds = [];
-  const menuItems    = [];
+  const menuItems = [];
 
-  // Combos primeiro
+  // Favorites from config
+  const favorites = configStore.getArray("favoriteModels");
+  const recentModels = configStore.getArray("recentModels");
+
+  // Favorites section
+  const favModels = favorites.filter(m => {
+    // Only show favorites that are actually available
+    return combos.includes(m) || Object.values(groups).some(g => g.includes(m));
+  });
+  if (favModels.length > 0) {
+    favModels.forEach(model => {
+      allModelIds.push(model);
+      menuItems.push({ label: `${model}  ★`, icon: "★" });
+    });
+  }
+
+  // Combos
   if (combos.length > 0) {
     combos.forEach(combo => {
-      allModelIds.push(combo);
-      menuItems.push({ label: `${combo}  (Combo)`, icon: "🔀" });
+      if (!allModelIds.includes(combo)) {
+        allModelIds.push(combo);
+        menuItems.push({ label: `${combo}  (Combo)`, icon: "🔀" });
+      }
     });
   }
 
@@ -117,8 +128,11 @@ async function selectModelFromList(title, currentValue = "", options = {}) {
   sortedProviders.forEach(provider => {
     const providerName = PROVIDER_ALIAS_NAMES[provider] || provider;
     groups[provider].forEach(model => {
-      allModelIds.push(model);
-      menuItems.push({ label: `${model}  (${providerName})`, icon: "·" });
+      if (!allModelIds.includes(model)) {
+        allModelIds.push(model);
+        const isRecent = recentModels.includes(model);
+        menuItems.push({ label: `${model}  (${providerName})${isRecent ? " ↻" : ""}`, icon: "·" });
+      }
     });
   });
 
@@ -132,11 +146,25 @@ async function selectModelFromList(title, currentValue = "", options = {}) {
 
   // Pré-selecionar o modelo atual, se existir na lista
   const defaultIndex = Math.max(0, allModelIds.indexOf(currentValue));
-  const subtitle = currentValue ? `Atual: ${currentValue}` : "Use ↑↓ para navegar, Enter para confirmar";
+  const subtitle = currentValue
+    ? `Atual: ${currentValue} | ↑↓ navigate, Enter select, / filter`
+    : "↑↓ navigate, Enter select, type to filter";
 
   const selectedIdx = await selectMenu(title, menuItems, defaultIndex, subtitle);
   if (selectedIdx === -1) return null;
-  return allModelIds[selectedIdx];
+
+  const selected = allModelIds[selectedIdx];
+
+  // Track usage: add to recent, remove from favorites prompt
+  configStore.appendToArray("recentModels", selected, 5);
+
+  // Ask to favorite if not already
+  if (!favorites.includes(selected)) {
+    // Non-blocking hint — don't ask every time, just track
+    // User can manually favorite via /model → hold 'f'
+  }
+
+  return selected;
 }
 
 module.exports = {

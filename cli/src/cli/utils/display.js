@@ -126,6 +126,66 @@ function showStatus(message, type = "info") {
 }
 
 /**
+ * Animated success toast — checkmark with fade effect
+ * @param {string} message - Success message
+ */
+function showSuccess(message) {
+  const frames = ["⠋", "⠙", "⠹", "⠸", "⠼", "✓"];
+  let i = 0;
+  return new Promise((resolve) => {
+    if (!process.stdout.isTTY) {
+      console.log(`${COLORS.success}✓ ${message}${COLORS.reset}`);
+      resolve();
+      return;
+    }
+    const interval = setInterval(() => {
+      process.stdout.write(`\r${COLORS.success}${frames[i]} ${message}${COLORS.reset}`);
+      if (i >= frames.length - 1) {
+        clearInterval(interval);
+        console.log();
+        resolve();
+      }
+      i++;
+    }, 60);
+  });
+}
+
+/**
+ * Animated error toast
+ * @param {string} message - Error message
+ */
+function showError(message) {
+  console.log(`${COLORS.error}✗ ${message}${COLORS.reset}`);
+}
+
+/**
+ * Progress bar for long operations
+ * @param {string} label - Progress label
+ * @param {number} percent - Progress percentage (0-100)
+ * @param {number} [width=30] - Bar width
+ */
+function showProgress(label, percent, width = 30) {
+  const filled = Math.round((percent / 100) * width);
+  const empty = width - filled;
+  const bar = "█".repeat(filled) + "░".repeat(empty);
+  process.stdout.write(`\r${COLORS.cyan}${label} [${bar}] ${percent}%${COLORS.reset}`);
+  if (percent >= 100) console.log();
+}
+
+/**
+ * Show empty state with guidance
+ * @param {string} title - Empty state title
+ * @param {string[]} hints - Array of hint strings
+ */
+function showEmptyState(title, hints = []) {
+  console.log(`\n  ${COLORS.dim}${title}${COLORS.reset}`);
+  hints.forEach(hint => {
+    console.log(`  ${COLORS.cyan}→${COLORS.reset} ${hint}`);
+  });
+  console.log();
+}
+
+/**
  * Clear the terminal screen
  */
 function clearScreen() {

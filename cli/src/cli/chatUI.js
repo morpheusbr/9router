@@ -1,5 +1,6 @@
 const { selectModelFromList } = require("./utils/modelSelector");
-const { prompt, confirm, COLORS } = require("./utils/input");
+const { prompt, confirm, commandPalette, COLORS } = require("./utils/input");
+const { showSuccess, showError, showEmptyState } = require("./utils/display");
 
 const autoApprovedCommands = new Set();
 
@@ -47,16 +48,30 @@ process.on('SIGINT', () => {
 function sanitizePromptContext(text) {
   if (typeof text !== "string") return text;
   return text
+    // Cloud provider keys
     .replace(/\b(sk-[a-zA-Z0-9_-]{20,})\b/g, "[REDACTED_OPENAI_KEY]")
     .replace(/\b(sk-ant-api[a-zA-Z0-9_-]{20,})\b/g, "[REDACTED_ANTHROPIC_KEY]")
     .replace(/\b(AKIA[0-9A-Z]{16})\b/g, "[REDACTED_AWS_KEY]")
     .replace(/\b(AIza[0-9A-Za-z_-]{35})\b/g, "[REDACTED_GCP_KEY]")
+    // Git/CI tokens
     .replace(/\b(ghp_[a-zA-Z0-9]{30,})\b/g, "[REDACTED_GITHUB_KEY]")
     .replace(/\b(gho_[a-zA-Z0-9]{30,})\b/g, "[REDACTED_GITHUB_OAUTH]")
+    .replace(/\b(ghs_[a-zA-Z0-9]{30,})\b/g, "[REDACTED_GITHUB_APP]")
     .replace(/\b(glpat-[a-zA-Z0-9_-]{20,})\b/g, "[REDACTED_GITLAB_TOKEN]")
+    .replace(/\b(glrt-[a-zA-Z0-9_-]{20,})\b/g, "[REDACTED_GITLAB_RUNNER]")
+    // Chat/messaging tokens
+    .replace(/\b(xoxb-[a-zA-Z0-9_-]{20,})\b/g, "[REDACTED_SLACK_BOT]")
+    .replace(/\b(xoxp-[a-zA-Z0-9_-]{20,})\b/g, "[REDACTED_SLACK_USER]")
+    .replace(/\b(bot[0-9]+:[a-zA-Z0-9_-]{30,})\b/g, "[REDACTED_TELEGRAM_BOT]")
+    // Payment
+    .replace(/\b(sk_live_[a-zA-Z0-9]{20,})\b/g, "[REDACTED_STRIPE_KEY]")
+    .replace(/\b(rk_live_[a-zA-Z0-9]{20,})\b/g, "[REDACTED_STRIPE_KEY]")
+    // JWT & auth
     .replace(/\b(eyJ[a-zA-Z0-9_-]{10,}\.eyJ[a-zA-Z0-9_-]{10,}\.[a-zA-Z0-9_-]{10,})\b/g, "[REDACTED_JWT_TOKEN]")
     .replace(/(Bearer\s+)[a-zA-Z0-9._-]{20,}/gi, "$1[REDACTED_BEARER_TOKEN]")
-    .replace(/(DATABASE_URL|MYSQL_PASSWORD|POSTGRES_PASSWORD|REDIS_PASSWORD|SECRET|PASSWORD|API_KEY|PRIVATE_KEY|ACCESS_TOKEN|AUTH_TOKEN)=["']?[^"'\s\n]{6,}["']?/gi, "$1=[REDACTED_SECRET]")
+    // Env vars with secrets
+    .replace(/(DATABASE_URL|MYSQL_PASSWORD|POSTGRES_PASSWORD|REDIS_PASSWORD|SECRET|PASSWORD|API_KEY|PRIVATE_KEY|ACCESS_TOKEN|AUTH_TOKEN|DISCORD_TOKEN)=["']?[^"'\s\n]{6,}["']?/gi, "$1=[REDACTED_SECRET]")
+    // Private keys
     .replace(/-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----[\s\S]*?-----END (?:RSA |EC |OPENSSH )?PRIVATE KEY-----/g, "[REDACTED_PRIVATE_KEY]");
 }
 
@@ -320,6 +335,29 @@ function getHistoryFilePath() {
 }
 
 async function startChatUI(port) {
+  // Health check + version compatibility before starting chat
+  try {
+    const healthRes = await fetch(`http://localhost:${port}/api/health`, { signal: AbortSignal.timeout(5000) });
+    if (!healthRes.ok) {
+      console.log(`${COLORS.yellow}⚠️  Servidor respondeu ${healthRes.status}. Algumas funcionalidades podem não funcionar.${COLORS.reset}\n`);
+    } else {
+      try {
+        const health = await healthRes.json();
+        if (health.version) {
+          const cliPkg = require("../../../package.json");
+          const cliMajor = cliPkg.version.split('.').slice(0, 2).join('.');
+          const srvMajor = health.version.split('.').slice(0, 2).join('.');
+          if (cliMajor !== srvMajor) {
+            console.log(`${COLORS.yellow}⚠️  Versão do CLI (${cliPkg.version}) difere do servidor (${health.version}). Considere atualizar.${COLORS.reset}\n`);
+          }
+        }
+      } catch {}
+    }
+  } catch {
+    console.log(`${COLORS.red}❌ Servidor inacessível na porta ${port}. Inicie com: hiperrouter${COLORS.reset}\n`);
+    return;
+  }
+
   let model = await selectModelFromList("Select Model for Chat", "", { excludeCombos: false, port });
   if (!model) return;
 
@@ -406,15 +444,55 @@ código novo (o que vai entrar no lugar)
         }
       }
     } catch(e) {}
+
+    // Status bar: model | port | messages | uptime
+    const uptimeMin = Math.round((Date.now() - sessionStartTime) / 60000);
+    const statusLine = `${COLORS.dim}│ ${model} │ :${port} │ ${messages.length} msgs │ ${sessionRequestCount} reqs │ ${uptimeMin}m │${COLORS.reset}`;
+    console.log(statusLine);
+
     let rawUserMessage = await prompt(`${COLORS.green}Você: ${COLORS.reset}`);
     let lowerMsg = rawUserMessage.toLowerCase().trim();
+
+    // Ctrl+K → command palette
+    if (rawUserMessage === "\x0B" || rawUserMessage === "\x0B") {
+      const cmd = await commandPalette("HiperRouter Commands");
+      if (cmd) {
+        rawUserMessage = cmd;
+        lowerMsg = cmd.toLowerCase().trim();
+      } else {
+        continue;
+      }
+    }
     
     if (lowerMsg === 'exit' || lowerMsg === 'quit' || lowerMsg === '/exit') break;
-    if (lowerMsg === '/clear') {
+    if (lowerMsg === '/clear' || rawUserMessage === "\x0C") { // Ctrl+L or /clear
       messages = [];
       try { fs.unlinkSync(historyFile); } catch(e) {}
+      clearScreen();
       console.log(`${COLORS.dim}Histórico do chat limpo.${COLORS.reset}\n`);
       continue;
+    }
+    if (lowerMsg === '/fav') {
+      const configStore = require("./utils/configStore");
+      const favs = configStore.getArray("favoriteModels");
+      if (favs.includes(model)) {
+        const newFavs = favs.filter(m => m !== model);
+        configStore.set("favoriteModels", newFavs);
+        console.log(`${COLORS.dim}✗ ${model} removido dos favoritos.${COLORS.reset}\n`);
+      } else {
+        configStore.appendToArray("favoriteModels", model, 20);
+        console.log(`${COLORS.green}★ ${model} adicionado aos favoritos! Aparece no topo da lista /model.${COLORS.reset}\n`);
+      }
+      continue;
+    }
+    if (lowerMsg === '/palette' || lowerMsg === '/cmd') {
+      const cmd = await commandPalette("HiperRouter Commands");
+      if (cmd) {
+        rawUserMessage = cmd;
+        lowerMsg = cmd.toLowerCase().trim();
+      } else {
+        continue;
+      }
     }
     if (lowerMsg.startsWith('/history')) {
       const n = parseInt(lowerMsg.split(' ')[1]) || 10;
@@ -737,6 +815,8 @@ código novo (o que vai entrar no lugar)
     }
 
     let aiThinking = true;
+    let rateLimitRetries = 0;
+    const MAX_RATE_LIMIT_RETRIES = 3;
     while (aiThinking) {
       aiThinking = false;
       try {
@@ -763,15 +843,22 @@ código novo (o que vai entrar no lugar)
         process.stdout.write(`\r${COLORS.cyan}IA: ${COLORS.reset}\x1b[K`);
 
         if (response.status === 429) {
+          rateLimitRetries++;
+          if (rateLimitRetries >= MAX_RATE_LIMIT_RETRIES) {
+            console.log(`\n${COLORS.red}❌ Rate limit atingido ${MAX_RATE_LIMIT_RETRIES}x consecutivas. Troque de modelo com /model ou aguarde.${COLORS.reset}\n`);
+            messages.pop();
+            break;
+          }
           const headerWait = parseInt(response.headers.get('retry-after') || '15', 10);
           const waitTime = Math.min(isNaN(headerWait) ? 15 : headerWait, 15);
-          console.log(`\n${COLORS.yellow}⚠️  Rate limit (429) no modelo '${model}' — aguardando ${waitTime}s... (Use /model para trocar de provedor se persistir)${COLORS.reset}`);
+          console.log(`\n${COLORS.yellow}⚠️  Rate limit (429) no modelo '${model}' — aguardando ${waitTime}s... (tentativa ${rateLimitRetries}/${MAX_RATE_LIMIT_RETRIES})${COLORS.reset}`);
           await new Promise(r => setTimeout(r, waitTime * 1000));
-          // Pop the user message that was pushed at L690 to avoid duplication on retry
+          // Pop the user message to avoid duplication on retry
           if (messages.length > 0 && messages[messages.length - 1].role === 'user') messages.pop();
           aiThinking = true;
           continue;
         }
+        rateLimitRetries = 0; // reset on non-429 response
         if (!response.ok) {
           console.log(`${COLORS.red}Erro API: ${response.status} ${response.statusText}${COLORS.reset}`);
           messages.pop(); break;
@@ -823,10 +910,12 @@ código novo (o que vai entrar no lugar)
                     aiFullMessage += `[ERRO: ${data.error.message || JSON.stringify(data.error)}]`;
                     break;
                   }
-                  const content = data.choices[0]?.delta?.content || "";
+                  const choice = data.choices && data.choices[0];
+                  if (!choice) continue; // skip malformed chunks (usage-only, etc.)
+                  const content = choice.delta?.content || "";
                   aiFullMessage += content;
                   pendingPrint += content;
-                  
+
                   while (pendingPrint.length > 0) {
                     if (!inToolCall) {
                       let tagStart = pendingPrint.indexOf('<tool_call>');
@@ -870,7 +959,9 @@ código novo (o que vai entrar no lugar)
                       }
                     }
                   }
-                } catch (e) {}
+                } catch (e) {
+                  if (process.env.DEBUG) console.warn(`[SSE] chunk parse error: ${e.message}`);
+                }
               }
             }
           }
@@ -946,13 +1037,15 @@ código novo (o que vai entrar no lugar)
         }
         try {
           // Compactar mensagens system com output longo antes de salvar (evita arquivos de MB)
-          const compactMessages = messages.map(m =>
-            (m.role === 'system' && m.content.length > 2000)
-              ? { ...m, content: m.content.substring(0, 800) + '\n…[COMPACTADO — conteúdo completo foi processado pela IA]' }
-              : m
-          );
+          // Preserva início (instruções) e fim (erros/recentes) do conteúdo
+          const compactMessages = messages.map(m => {
+            if (m.role !== 'system' || m.content.length <= 2000) return m;
+            const head = m.content.substring(0, 500);
+            const tail = m.content.substring(m.content.length - 500);
+            return { ...m, content: `${head}\n…[COMPACTADO ${m.content.length}→1000 chars — conteúdo completo processado pela IA]…\n${tail}` };
+          });
           fs.writeFileSync(historyFile, JSON.stringify(compactMessages, null, 2));
-        } catch(e) {}
+        } catch(e) { if (process.env.DEBUG) console.warn("[history] save failed:", e.message); }
 
         // --- Autonomous Loop: Auto-Discovery (Grep) ---
         const grepMatch = aiFullMessage.match(/<grep\s+search="([^"]+)"\s*\/>/);

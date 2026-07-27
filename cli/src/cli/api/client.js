@@ -86,10 +86,13 @@ function configure(options = {}) {
  * @param {Object} body - Request body (optional)
  * @returns {Promise<Object>} Response with { success, data/error }
  */
+const MAX_RETRIES = 2;
+const REQUEST_TIMEOUT_MS = 30000;
+
 function makeRequest(method, path, body = null) {
   return new Promise((resolve) => {
     const httpModule = config.protocol === "https:" ? https : http;
-    
+
     const options = {
       hostname: config.host,
       port: config.port,
@@ -107,8 +110,11 @@ function makeRequest(method, path, body = null) {
       options.headers["Content-Length"] = Buffer.byteLength(bodyString);
     }
 
-    const executeRequest = (isRetry = false) => {
-      const req = httpModule.request(options, (res) => {
+    const executeRequest = (retryCount = 0) => {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+
+      const req = httpModule.request({ ...options, signal: controller.signal }, (res) => {
         let data = "";
 
         res.on("data", (chunk) => {
@@ -116,9 +122,10 @@ function makeRequest(method, path, body = null) {
         });
 
         res.on("end", () => {
+          clearTimeout(timeout);
           try {
             const parsed = data ? JSON.parse(data) : {};
-            
+
             // Check if response indicates error
             if (res.statusCode >= 400 || parsed.error) {
               resolve({
@@ -143,26 +150,20 @@ function makeRequest(method, path, body = null) {
       });
 
       req.on("error", async (err) => {
-        if ((err.code === "ECONNREFUSED" || err.code === "ECONNRESET") && !isRetry) {
-          await new Promise((r) => setTimeout(r, 500));
-          return executeRequest(true);
+        clearTimeout(timeout);
+        const isRetryable = err.code === "ECONNREFUSED" || err.code === "ECONNRESET" || err.name === "AbortError";
+        if (isRetryable && retryCount < MAX_RETRIES) {
+          const delay = 500 * Math.pow(2, retryCount); // exponential backoff
+          await new Promise((r) => setTimeout(r, delay));
+          return executeRequest(retryCount + 1);
         }
         resolve({
           success: false,
-          error: `Network error: ${err.message}`,
+          error: err.name === "AbortError"
+            ? `Request timeout (${REQUEST_TIMEOUT_MS / 1000}s)`
+            : `Network error: ${err.message}`,
         });
       });
-
-      req.on("timeout", () => {
-        req.destroy();
-        resolve({
-          success: false,
-          error: "Request timeout",
-        });
-      });
-
-      // Set timeout (30 seconds)
-      req.setTimeout(30000);
 
       // Write body if present
       if (body && (method === "POST" || method === "PUT" || method === "PATCH")) {
@@ -172,7 +173,7 @@ function makeRequest(method, path, body = null) {
       req.end();
     };
 
-    executeRequest(false);
+    executeRequest(0);
   });
 }
 
