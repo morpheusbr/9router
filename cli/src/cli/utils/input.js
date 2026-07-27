@@ -263,7 +263,7 @@ async function selectMenu(title, items, defaultIndex = 0, subtitle = "", headerC
         resolve(-1);
         return;
       }
-      if (key.ctrl && key.name === "c") { cleanup(); process.exit(0); }
+      if (key.ctrl && key.name === "c") { cleanup(); resolve(-1); return; }
       // Backspace — remove from filter
       if (key.name === "backspace") {
         filterQuery = filterQuery.slice(0, -1);
@@ -345,7 +345,7 @@ async function commandPalette(title = "Command Palette") {
       if (!isActive || !key) return;
 
       if (key.name === "escape") { cleanup(); resolve(null); return; }
-      if (key.ctrl && key.name === "c") { cleanup(); process.exit(0); }
+      if (key.ctrl && key.name === "c") { cleanup(); resolve(null); return; }
 
       const filtered = getFiltered();
 
