@@ -97,11 +97,27 @@ async function processPatches(aiFullMessage, messages) {
             console.log(`${COLORS.green}✅ Patch cirúrgico salvo via Fuzzy Match! ${COLORS.dim}(backup em ${filePath}.bak — use /undo para reverter)${COLORS.reset}\n`);
             try { execSync("rtk graphify update .", { cwd: process.cwd(), stdio: "ignore" }); } catch(e) {}
           } else {
-            console.log(`${COLORS.red}⛔ Falha Crítica: O código 'antigo' não foi encontrado nem com Fuzzy Match. A IA gerou um bloco que não existe no arquivo.${COLORS.reset}\n`);
+            console.log(`${COLORS.red}⛔ Falha Crítica: O código 'antigo' não foi encontrado nem com Fuzzy Match. A IA gerou um bloco que não existe no arquivo.${COLORS.reset}`);
+            // Self-Healing: send file content back to LLM so it can rewrite the patch
+            const snippet = content.length > 6000 ? content.slice(-6000) : content;
+            const snippetPrefix = content.length > 6000 ? "...[trecho anterior omitido]...\n" : "";
+            messages.push({
+              role: "system",
+              content: `⚠️ AUTO-HEAL (patch falhou): O patch no arquivo '${filePath}' não pôde ser aplicado — o código antigo que você forneceu não existe no arquivo atual.\n\nConteúdo atual do arquivo (últimas ~200 linhas):\n\`\`\`\n${snippetPrefix}${snippet}\n\`\`\`\n\nAnalise o conteúdo acima, gere um novo patch correto com o bloco 'antigo' que REALMENTE existe no arquivo, e tente novamente.`
+            });
+            logAudit("PATCH_FUZZY_FAILED", { file: filePath });
+            aiThinking = true;
+            break;
           }
         }
       } catch (e) {
         console.log(`${COLORS.red}Erro: ${e.message}${COLORS.reset}`);
+        messages.push({
+          role: "system",
+          content: `⚠️ AUTO-HEAL (erro ao aplicar patch): Patch no arquivo '${filePath}' falhou com erro: ${e.message}\nCorrija o problema e tente novamente.`
+        });
+        aiThinking = true;
+        break;
       }
     }
   }
