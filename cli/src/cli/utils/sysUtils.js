@@ -5,16 +5,21 @@ const pkg = require("../../../package.json");
 
 // Native spinner - no external dependency
 function createSpinner(text) {
+  // Dots spinner (modern standard)
   const frames = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
+  const cyan = "\x1b[36m";
+  const reset = "\x1b[0m";
+  const green = "\x1b[32m";
+  const red = "\x1b[31m";
   let i = 0;
   let interval = null;
   let currentText = text;
   return {
     start() {
       if (process.stdout.isTTY) {
-        process.stdout.write(`\r${frames[0]} ${currentText}`);
+        process.stdout.write(`\r${cyan}${frames[0]}${reset} ${currentText}`);
         interval = setInterval(() => {
-          process.stdout.write(`\r${frames[i++ % frames.length]} ${currentText}`);
+          process.stdout.write(`\r${cyan}${frames[i++ % frames.length]}${reset} ${currentText}`);
         }, 80);
       }
       return this;
@@ -30,11 +35,11 @@ function createSpinner(text) {
     },
     succeed(msg) {
       this.stop();
-      console.log(`✅ ${msg}`);
+      console.log(`${green}✔${reset} ${msg || currentText}`);
     },
     fail(msg) {
       this.stop();
-      console.log(`❌ ${msg}`);
+      console.log(`${red}✖${reset} ${msg || currentText}`);
     }
   };
 }

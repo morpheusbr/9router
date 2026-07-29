@@ -6,12 +6,52 @@ import os from 'os';
 export async function GET() {
   try {
     // Attempt to locate the RTK history db
-    const dbPath = path.join(os.homedir(), '.local', 'share', 'rtk', 'history.db');
+    let dbPath = path.join(os.homedir(), '.local', 'share', 'rtk', 'history.db');
+
+    // Fallback if running under different user (www vs root vs real user)
+    const fs = require('fs');
+    if (!fs.existsSync(dbPath)) {
+      const fallbacks = [
+        '/root/.local/share/rtk/history.db',
+        '/home/fabio/.local/share/rtk/history.db'
+      ];
+
+      // Tenta achar em qualquer usuário do /home
+      if (fs.existsSync('/home')) {
+        const users = fs.readdirSync('/home');
+        users.forEach(u => fallbacks.push(`/home/${u}/.local/share/rtk/history.db`));
+      }
+
+      for (const f of fallbacks) {
+        if (fs.existsSync(f)) {
+          dbPath = f;
+          break;
+        }
+      }
+    }
+
+    // Se DB não existe, retorna dados vazios com mensagem informativa
+    if (!fs.existsSync(dbPath)) {
+      return NextResponse.json({
+        success: true,
+        stats: {
+          totalCommands: 0,
+          inputTokens: 0,
+          outputTokens: 0,
+          savedTokens: 0,
+          totalExecTimeMs: 0
+        },
+        topCommands: [],
+        history: [],
+        info: "RTK history database not found. Run RTK CLI to collect token savings data."
+      });
+    }
+
     const db = new Database(dbPath, { readonly: true });
 
     // Aggregate stats
     const statsRow = db.prepare(`
-      SELECT 
+      SELECT
         COUNT(id) as total_commands,
         SUM(input_tokens) as input_tokens,
         SUM(output_tokens) as output_tokens,
@@ -22,7 +62,7 @@ export async function GET() {
 
     // Top commands
     const topCommands = db.prepare(`
-      SELECT 
+      SELECT
         original_cmd,
         COUNT(id) as count,
         SUM(saved_tokens) as saved,
@@ -36,7 +76,7 @@ export async function GET() {
 
     // Recent history
     const history = db.prepare(`
-      SELECT id, timestamp, original_cmd, saved_tokens, savings_pct, exec_time_ms 
+      SELECT id, timestamp, original_cmd, saved_tokens, savings_pct, exec_time_ms
       FROM commands
       ORDER BY timestamp DESC
       LIMIT 50

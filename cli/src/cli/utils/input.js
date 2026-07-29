@@ -194,10 +194,21 @@ async function selectMenu(title, items, defaultIndex = 0, subtitle = "", headerC
       if (!isActive) return;
       process.stdout.write("\x1b[2J\x1b[H");
       const width = Math.min(process.stdout.columns || 60, 60);
-      console.log(`\n${COLORS.terracotta}${"=".repeat(width)}${COLORS.reset}`);
-      console.log(`  ${COLORS.bright}${COLORS.terracotta}${title}${COLORS.reset}`);
-      if (subtitle) console.log(`  ${COLORS.dim}${subtitle}${COLORS.reset}`);
-      console.log(`${COLORS.terracotta}${"=".repeat(width)}${COLORS.reset}`);
+      const inner = width - 2;
+
+      // Rounded top border
+      console.log(`\n${COLORS.cyan}╭${"─".repeat(inner)}╮${COLORS.reset}`);
+      // Title
+      const titleStr = `  ${title}`;
+      const tPad = Math.max(0, inner - titleStr.length + 2);
+      console.log(`${COLORS.cyan}│${COLORS.reset}${COLORS.bright}${COLORS.cyan}${titleStr}${COLORS.reset}${" ".repeat(tPad - 2)}${COLORS.cyan}│${COLORS.reset}`);
+      if (subtitle) {
+        const sStr = `  ${subtitle}`;
+        const sPad = Math.max(0, inner - sStr.length + 2);
+        console.log(`${COLORS.cyan}│${COLORS.reset}${COLORS.dim}${sStr}${COLORS.reset}${" ".repeat(sPad - 2)}${COLORS.cyan}│${COLORS.reset}`);
+      }
+      // Divider
+      console.log(`${COLORS.cyan}├${"─".repeat(inner)}┤${COLORS.reset}`);
       if (breadcrumb.length > 0) console.log(`  ${COLORS.dim}${breadcrumb.join(" > ")}${COLORS.reset}`);
       console.log();
       if (headerContent) { console.log(headerContent); console.log(); }
