@@ -254,27 +254,65 @@ Commands:
       serverProcess = spawn(process.execPath, [serverPath], {
         env: buildEnvWithRuntime(env),
         cwd: standaloneDir,
-        stdio: showLog ? "inherit" : ["ignore", "pipe", "pipe"],
+        stdio: ["ignore", "pipe", "pipe"],
       });
 
-      // Capture stderr from server child — log errors even when showLog=false
-      if (!showLog && serverProcess.stderr) {
+      let serverStderrBuffer = [];
+      const MAX_BUFFER = 100;
+
+      // Pipe stdout if showLog
+      if (serverProcess.stdout) {
+        serverProcess.stdout.on("data", (chunk) => {
+          if (showLog) process.stdout.write(chunk);
+        });
+      }
+
+      // Capture stderr from server child
+      if (serverProcess.stderr) {
         serverProcess.stderr.on("data", (chunk) => {
-          const msg = chunk.toString().trim();
-          if (msg) console.error(`[server] ${msg}`);
+          const str = chunk.toString();
+          if (showLog) process.stderr.write(chunk);
+          else {
+            const msg = str.trim();
+            if (msg && !msg.includes("EADDRINUSE")) console.error(`[server] ${msg}`);
+          }
+          const lines = str.split("\n");
+          for (const l of lines) {
+            serverStderrBuffer.push(l);
+            if (serverStderrBuffer.length > MAX_BUFFER) serverStderrBuffer.shift();
+          }
         });
       }
 
       // Detect unexpected server exits (crash)
       const serverStartTime = Date.now();
-      serverProcess.on("exit", (code, signal) => {
+      serverProcess.on("exit", async (code, signal) => {
         if (isShuttingDown || isAlreadyRunning) return;
         const uptime = Date.now() - serverStartTime;
         if (code !== 0 && code !== null) {
           console.error(`\x1b[31m❌ Server exited with code ${code}${signal ? ` (signal: ${signal})` : ''}.\x1b[0m`);
           if (uptime < 2000) {
-            console.error(`\x1b[31m   Server crashed immediately — check logs above or run with --log.\x1b[0m`);
+            console.error(`\x1b[31m   Server crashed immediately.\x1b[0m`);
           }
+
+          // Trigger Wolverine mode
+          try {
+            const { selfHeal } = require("./src/cli/chat/selfHealRuntime");
+            const fullLog = serverStderrBuffer.join("\n");
+            // Only try to heal if there's an actual stack trace / Error in the log
+            if (fullLog.includes("Error:") || fullLog.includes("Exception") || fullLog.match(/at\s+.*?:[0-9]+/)) {
+              console.log(`\n\x1b[33m⚡ Disparando Wolverine Mode para o Server (Next.js)...\x1b[0m`);
+              const healed = await selfHeal(fullLog, "server");
+              if (healed) {
+                console.log(`\n\x1b[32m🔄 Reiniciando servidor Web após auto-cura...\x1b[0m\n`);
+                startServer(opts, updatePromise);
+                return; // Prevent exit
+              }
+            }
+          } catch (e) {
+            console.error("Wolverine mode crashed:", e.message);
+          }
+
           if (!isShuttingDown) {
             cleanup();
             process.exit(1);
@@ -311,17 +349,55 @@ Commands:
     }
 
     let isShuttingDown = false;
-    process.on("uncaughtException", (err) => {
+
+    async function handleGlobalCrash(errStr, context) {
       if (isShuttingDown) return;
-      console.error("Error:", err.message);
+      isShuttingDown = true;
+      console.error("\x1b[31mFatal CLI Error:\x1b[0m", errStr);
+
+      try {
+        const { selfHeal } = require("./src/cli/chat/selfHealRuntime");
+        console.log(`\n\x1b[33m⚡ Disparando Wolverine Mode para o CLI...\x1b[0m`);
+        const healed = await selfHeal(errStr, context);
+        if (healed) {
+          console.log(`\n\x1b[32m✅ Arquivo do CLI corrigido. Por favor, reinicie o HiperRouter CLI.\x1b[0m\n`);
+        }
+      } catch (e) {
+        console.error("Wolverine mode failed:", e.message);
+      }
+
+      cleanup();
+      process.exit(1);
+    }
+
+    process.on("uncaughtException", (err) => {
+      handleGlobalCrash(err.stack || err.message, "cli");
     });
+
+    process.on("unhandledRejection", (reason) => {
+      const errStr = reason instanceof Error ? reason.stack : String(reason);
+      handleGlobalCrash(errStr, "cli");
+    });
+
+    // Detect EADDRINUSE from server child and show clear message
+    if (serverProcess && !isAlreadyRunning && !showLog && serverProcess.stderr) {
+      serverProcess.stderr.on("data", (chunk) => {
+        const msg = chunk.toString();
+        if (msg.includes("EADDRINUSE")) {
+          console.error(`\x1b[31m\n✖ Port ${port} is already in use by another process.\x1b[0m`);
+          console.error(`  Try a different port: ${APP_NAME} --port ${port + 1}`);
+          console.error(`  Or kill the occupying process: lsof -i :${port} -t | xargs kill`);
+        }
+      });
+    }
 
     const handleExitSignal = () => {
       if (isShuttingDown) return;
       isShuttingDown = true;
       console.log("\nExiting...");
       cleanup();
-      setTimeout(() => process.exit(0), 100);
+      // Give cleanup enough time for SIGTERM→SIGKILL escalation (5s in cleanup)
+      setTimeout(() => process.exit(0), 6000);
     };
 
     process.on("SIGINT", handleExitSignal);

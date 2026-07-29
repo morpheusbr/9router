@@ -1,6 +1,6 @@
 {
   "name": "hiperrouter-app",
-  "version": "0.6.0",
+  "version": "0.6.1",
   "description": "HiperRouter web dashboard",
   "private": true,
   "scripts": {

@@ -37,11 +37,9 @@ const fs = require("fs");
 const path = require("path");
 const { execSync, spawn, spawnSync } = require("child_process");
 
-// Graceful Shutdown
-process.on('SIGINT', () => {
-  console.log(`\n\x1b[33mEncerrando CLI graciosamente (Ctrl+C)... Limpando processos pendentes.\x1b[0m`);
-  process.exit(0);
-});
+// Graceful Shutdown - handled by global process handlers in cli.js
+// Removing aggressive process.exit(0) from chatUI to allow proper cleanup
+// of locks, proxy, and tunnel processes.
 
 // --- MILITARY GRADE SECURITY & RESILIENCE HELPERS ---
 
