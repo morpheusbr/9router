@@ -56,7 +56,22 @@ async function refreshHeaderBg(port) {
 function getHeader(port) {
   // Kick off background refresh; return cache (or placeholder on first call).
   refreshHeaderBg(port);
-  return cachedHeader || `Endpoint: http://localhost:${port}/v1\nTunnel:   ${COLORS.dim}...${COLORS.reset}\nKey:      ${COLORS.dim}...${COLORS.reset}`;
+  const content = cachedHeader || `Endpoint: http://localhost:${port}/v1\nTunnel:   ${COLORS.dim}...${COLORS.reset}\nKey:      ${COLORS.dim}...${COLORS.reset}`;
+
+  // Create a beautiful bordered block for the server info
+  const lines = content.split('\n');
+  const innerWidth = 56;
+  const topLeft = "╭", topRight = "╮", botLeft = "╰", botRight = "╯", horiz = "─", vert = "│";
+
+  let box = `${COLORS.cyan}${topLeft}${horiz.repeat(innerWidth)}${topRight}${COLORS.reset}\n`;
+  lines.forEach(l => {
+    const cleanL = l.replace(/\x1b\[[0-9;]*m/g, '');
+    const pad = Math.max(0, innerWidth - cleanL.length - 2);
+    box += `${COLORS.cyan}${vert}${COLORS.reset} ${l}${" ".repeat(pad)} ${COLORS.cyan}${vert}${COLORS.reset}\n`;
+  });
+  box += `${COLORS.cyan}${botLeft}${horiz.repeat(innerWidth)}${botRight}${COLORS.reset}`;
+
+  return box;
 }
 
 /**

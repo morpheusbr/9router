@@ -15,12 +15,14 @@ const COLORS = {
 
 // Box drawing characters
 const BOX_CHARS = {
-  topLeft: "┌",
-  topRight: "┐",
-  bottomLeft: "└",
-  bottomRight: "┘",
+  topLeft: "╭",
+  topRight: "╮",
+  bottomLeft: "╰",
+  bottomRight: "╯",
   horizontal: "─",
-  vertical: "│"
+  vertical: "│",
+  dividerLeft: "├",
+  dividerRight: "┤"
 };
 
 /**
@@ -33,24 +35,30 @@ function showBox(title, content, width = 60) {
   const innerWidth = width - 4;
   const lines = content.split("\n");
 
-  // Top border with title
-  const topBorder = BOX_CHARS.topLeft + BOX_CHARS.horizontal.repeat(2) + 
-    ` ${title} ` + 
-    BOX_CHARS.horizontal.repeat(Math.max(0, innerWidth - title.length - 3)) + 
-    BOX_CHARS.topRight;
+  const titleStr = title ? ` ${title} ` : "";
+  const dashCount = Math.max(0, innerWidth - titleStr.length);
+  const leftDashes = Math.floor(dashCount / 2);
+  const rightDashes = dashCount - leftDashes;
+
+  // Top border with title centered
+  const topBorder = COLORS.cyan + BOX_CHARS.topLeft + BOX_CHARS.horizontal.repeat(leftDashes) +
+    COLORS.bright + titleStr + COLORS.reset + COLORS.cyan +
+    BOX_CHARS.horizontal.repeat(rightDashes) + BOX_CHARS.topRight + COLORS.reset;
 
   console.log(topBorder);
 
   // Content lines
   lines.forEach(line => {
-    const paddedLine = line.padEnd(innerWidth);
-    console.log(`${BOX_CHARS.vertical} ${paddedLine} ${BOX_CHARS.vertical}`);
+    // Strip ansi for length calculation
+    const visibleLength = line.replace(/\x1b\[[0-9;]*m/g, '').length;
+    const padding = " ".repeat(Math.max(0, innerWidth - visibleLength + 2)); // +2 for side padding
+    console.log(`${COLORS.cyan}${BOX_CHARS.vertical}${COLORS.reset} ${line}${padding}${COLORS.cyan}${BOX_CHARS.vertical}${COLORS.reset}`);
   });
 
   // Bottom border
-  const bottomBorder = BOX_CHARS.bottomLeft + 
-    BOX_CHARS.horizontal.repeat(innerWidth + 2) + 
-    BOX_CHARS.bottomRight;
+  const bottomBorder = COLORS.cyan + BOX_CHARS.bottomLeft +
+    BOX_CHARS.horizontal.repeat(innerWidth + 2) +
+    BOX_CHARS.bottomRight + COLORS.reset;
 
   console.log(bottomBorder);
 }
@@ -198,12 +206,14 @@ function clearScreen() {
  * @param {string} subtitle - Optional subtitle
  */
 function showHeader(title, subtitle) {
-  console.log(`\n${"=".repeat(60)}`);
-  console.log(`  ${COLORS.bright}${COLORS.cyan}${title}${COLORS.reset}`);
+  const width = 60;
+  const inner = width - 2;
+  console.log(`\n${COLORS.cyan}╭${"─".repeat(inner)}╮${COLORS.reset}`);
+  console.log(`${COLORS.cyan}│${COLORS.reset} ${COLORS.bright}${COLORS.cyan}${title}${COLORS.reset}${" ".repeat(Math.max(0, inner - title.length - 2))} ${COLORS.cyan}│${COLORS.reset}`);
   if (subtitle) {
-    console.log(`  ${COLORS.dim}${subtitle}${COLORS.reset}`);
+    console.log(`${COLORS.cyan}│${COLORS.reset} ${COLORS.dim}${subtitle}${COLORS.reset}${" ".repeat(Math.max(0, inner - subtitle.length - 2))} ${COLORS.cyan}│${COLORS.reset}`);
   }
-  console.log(`${"=".repeat(60)}\n`);
+  console.log(`${COLORS.cyan}╰${"─".repeat(inner)}╯${COLORS.reset}\n`);
 }
 
 /**

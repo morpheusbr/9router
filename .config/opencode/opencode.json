@@ -1,0 +1,45 @@
+{
+  "provider": {
+    "9router": {
+      "npm": "@ai-sdk/openai-compatible",
+      "options": {
+        "baseURL": "http://127.0.0.1:20128/v1",
+        "apiKey": "sk-f8be614b23b07bf8-2zix3w-d20240e6"
+      },
+      "models": {
+        "ag/gemini-pro-agent": {
+          "name": "ag/gemini-pro-agent",
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text"
+            ]
+          }
+        },
+        "ag/gemini-3.1-pro-low": {
+          "name": "ag/gemini-3.1-pro-low",
+          "modalities": {
+            "input": [
+              "text",
+              "image"
+            ],
+            "output": [
+              "text"
+            ]
+          }
+        }
+      }
+    }
+  },
+  "model": "9router/ag/gemini-pro-agent",
+  "agent": {
+    "explorer": {
+      "description": "Fast explorer subagent for codebase exploration",
+      "mode": "subagent",
+      "model": "9router/ag/gemini-pro-agent"
+    }
+  }
+}
