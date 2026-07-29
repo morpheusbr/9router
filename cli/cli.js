@@ -48,14 +48,15 @@ const args = process.argv.slice(2);
     if (process.env.DEBUG) console.error(reason);
   });
 
-  // Lockfile — prevent duplicate instances
-  const lockFile = path.join(
-    process.env.DATA_DIR || path.resolve(__dirname, ".HiperRouter"),
-    ".cli.pid"
-  );
+  const { getCliDataDir } = require("./src/cli/constants");
+
+  function getLockFilePath() {
+    return path.join(getCliDataDir(), ".cli.pid");
+  }
 
   function acquireLock() {
     try {
+      const lockFile = getLockFilePath();
       const dir = path.dirname(lockFile);
       if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 
@@ -79,6 +80,7 @@ const args = process.argv.slice(2);
 
   function releaseLock() {
     try {
+      const lockFile = getLockFilePath();
       if (fs.existsSync(lockFile)) {
         const content = fs.readFileSync(lockFile, "utf8").trim();
         if (parseInt(content, 10) === process.pid) {
@@ -91,7 +93,7 @@ const args = process.argv.slice(2);
   const lockHolder = acquireLock();
   if (lockHolder) {
     console.error(`❌ HiperRouter is already running (PID ${lockHolder}).`);
-    console.error(`   Stop it first, or delete: ${lockFile}`);
+    console.error(`   Stop it first, or delete: ${getLockFilePath()}`);
     process.exit(1);
   }
 

@@ -42,7 +42,8 @@ function showHelp() {
 }
 
 function showAuditLogs(n = 15) {
-  const auditLogPath = path.resolve(__dirname, "../../../..", ".HiperRouter", "audit.log");
+  const { getCliDataDir } = require("../constants");
+  const auditLogPath = path.join(getCliDataDir(), "audit.log");
   if (fs.existsSync(auditLogPath)) {
     const lines = fs.readFileSync(auditLogPath, 'utf-8').trim().split('\n').filter(Boolean);
     const recent = lines.slice(-n);

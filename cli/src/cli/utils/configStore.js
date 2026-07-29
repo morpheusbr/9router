@@ -4,19 +4,20 @@
  */
 const fs = require("fs");
 const path = require("path");
+const { getCliDataDir } = require("../constants");
 
-const CONFIG_FILE = path.join(
-  process.env.DATA_DIR || path.resolve(__dirname, "../../../..", ".HiperRouter"),
-  "cli-config.json"
-);
+function getConfigPath() {
+  return path.join(getCliDataDir(), "cli-config.json");
+}
 
 let _cache = null;
 
 function load() {
   if (_cache) return _cache;
   try {
-    if (fs.existsSync(CONFIG_FILE)) {
-      _cache = JSON.parse(fs.readFileSync(CONFIG_FILE, "utf8"));
+    const file = getConfigPath();
+    if (fs.existsSync(file)) {
+      _cache = JSON.parse(fs.readFileSync(file, "utf8"));
     }
   } catch {}
   _cache = _cache || {};
@@ -26,9 +27,10 @@ function load() {
 function save(config) {
   _cache = config;
   try {
-    const dir = path.dirname(CONFIG_FILE);
+    const file = getConfigPath();
+    const dir = path.dirname(file);
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-    fs.writeFileSync(CONFIG_FILE, JSON.stringify(config, null, 2), "utf8");
+    fs.writeFileSync(file, JSON.stringify(config, null, 2), "utf8");
   } catch {}
 }
 
@@ -58,4 +60,4 @@ function getArray(key) {
   return Array.isArray(cfg[key]) ? cfg[key] : [];
 }
 
-module.exports = { load, save, get, set, appendToArray, getArray, CONFIG_FILE };
+module.exports = { load, save, get, set, appendToArray, getArray, getConfigPath };

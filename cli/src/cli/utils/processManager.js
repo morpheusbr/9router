@@ -2,9 +2,10 @@ const fs = require("fs");
 const path = require("path");
 const { execSync } = require("child_process");
 
-// Get app data dir (matches app/src/lib/dataDir.js convention)
+// Get app data dir
 function getAppDataDir() {
-  return path.resolve(__dirname, "../../..", ".HiperRouter");
+  const { getCliDataDir } = require("../constants");
+  return getCliDataDir();
 }
 
 // Kill PID from file — SIGTERM first, SIGKILL after 3s if still alive

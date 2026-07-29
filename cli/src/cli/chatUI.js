@@ -323,7 +323,8 @@ function getProjectContext() {
 }
 
 function getHistoryFilePath() {
-  const appDir = path.resolve(__dirname, "../../..", ".HiperRouter");
+  const { getCliDataDir } = require("./constants");
+  const appDir = getCliDataDir();
   if (!fs.existsSync(appDir)) {
     fs.mkdirSync(appDir, { recursive: true });
   }
