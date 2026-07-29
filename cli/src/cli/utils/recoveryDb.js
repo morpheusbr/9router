@@ -1,17 +1,11 @@
 const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");
-
-function getDataDir() {
-  if (process.env.DATA_DIR) return process.env.DATA_DIR;
-  const cwdDir = path.join(process.cwd(), '.HiperRouter');
-  if (fs.existsSync(cwdDir)) return cwdDir;
-  return path.resolve(__dirname, "../../../..", ".HiperRouter");
-}
+const { getCliDataDir } = require("../constants");
 
 function loadDbSecret() {
   if (process.env.DB_SECRET) return process.env.DB_SECRET;
-  const file = path.join(getDataDir(), "db-secret");
+  const file = path.join(getCliDataDir(), "db-secret");
   try { return fs.readFileSync(file, "utf8").trim(); } catch { return ""; }
 }
 
@@ -47,7 +41,7 @@ function getRecoveryProvider() {
   try {
     // Try to load sqlite dynamically, fallback if not available
     const Database = require("better-sqlite3");
-    const dbPath = path.join(getDataDir(), "db.sqlite");
+    const dbPath = path.join(getCliDataDir(), "db.sqlite");
     if (!fs.existsSync(dbPath)) return null;
 
     const db = new Database(dbPath, { readonly: true });

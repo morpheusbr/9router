@@ -8,7 +8,8 @@ let lastGitCheckpoint = null;
 
 function logAudit(action, details = {}) {
   try {
-    const auditDir = path.resolve(__dirname, "../../../..", ".HiperRouter");
+    const { getCliDataDir } = require("../constants");
+    const auditDir = getCliDataDir();
     if (!fs.existsSync(auditDir)) fs.mkdirSync(auditDir, { recursive: true });
     const logPath = path.join(auditDir, "audit.log");
     const entry = {

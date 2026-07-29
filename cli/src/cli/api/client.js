@@ -6,6 +6,8 @@ const path = require("node:path");
 const os = require("node:os");
 const { machineIdSync } = require("node-machine-id");
 
+const { getCliDataDir } = require("../constants");
+
 // Default configuration
 const DEFAULT_CONFIG = {
   host: "localhost",
@@ -18,14 +20,7 @@ const CLI_TOKEN_SALT = "9r-cli-auth";
 const APP_NAME = "HiperRouter";
 
 function getDataDir() {
-  if (process.env.DATA_DIR) return process.env.DATA_DIR;
-  
-  // Check for local .HiperRouter in case server runs with custom HOME in PM2
-  const cwdDir = path.join(process.cwd(), '.HiperRouter');
-  if (fs.existsSync(cwdDir)) return cwdDir;
-  
-  // Force local directory instead of global
-  return path.resolve(__dirname, "../../../..", ".HiperRouter");
+  return getCliDataDir();
 }
 
 const MACHINE_ID_FILE = path.join(getDataDir(), "machine-id");

@@ -1,4 +1,5 @@
 const path = require("path");
+const fs = require("fs");
 
 const APP_NAME = "HiperRouter";
 const DEFAULT_PORT = 20128;
@@ -13,6 +14,22 @@ const PROCESS_IDENTIFIERS = [
   "hiperrouter"
 ];
 
+function getCliDataDir() {
+  if (process.env.DATA_DIR) return process.env.DATA_DIR;
+
+  // Se estiver rodando do source (ex: /home/www/HiperRouter/cli)
+  // __dirname = cli/src/cli
+  const rootDir = path.resolve(__dirname, "../../..");
+  const rootData = path.join(rootDir, ".HiperRouter");
+  if (fs.existsSync(rootData)) return rootData;
+
+  // Se estiver rodando do standalone ou via npm global
+  const cwdDir = path.join(process.cwd(), '.HiperRouter');
+  if (fs.existsSync(cwdDir)) return cwdDir;
+
+  return rootData;
+}
+
 module.exports = {
   APP_NAME,
   DEFAULT_PORT,
@@ -21,4 +38,5 @@ module.exports = {
   PORT_MIN,
   PORT_MAX,
   PROCESS_IDENTIFIERS,
+  getCliDataDir
 };
