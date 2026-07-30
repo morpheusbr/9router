@@ -464,162 +464,22 @@ código novo (o que vai entrar no lugar)
     }
     
     if (lowerMsg === 'exit' || lowerMsg === 'quit' || lowerMsg === '/exit') break;
-    if (lowerMsg === '/clear' || rawUserMessage === "\x0C") { // Ctrl+L or /clear
-      messages = [];
-      try { fs.unlinkSync(historyFile); } catch(e) {}
-      clearScreen();
-      console.log(`${COLORS.dim}Histórico do chat limpo.${COLORS.reset}\n`);
+    const { handleSlashCommand } = require("./chat/commands");
+    const state = { port, messages, model, sessionStartTime, sessionRequestCount, sessionTotalTokens, historyFile };
+    const handled = await handleSlashCommand(lowerMsg, rawUserMessage, state);
+    
+    // update mutable state
+    lowerMsg = state.lowerMsg || lowerMsg;
+    if (state.messages.length === 0) messages = []; // cleared
+
+    if (handled) {
+      if (lowerMsg === '/clear') messages = [];
       continue;
     }
-    if (lowerMsg === '/fav') {
-      const configStore = require("./utils/configStore");
-      const favs = configStore.getArray("favoriteModels");
-      if (favs.includes(model)) {
-        const newFavs = favs.filter(m => m !== model);
-        configStore.set("favoriteModels", newFavs);
-        console.log(`${COLORS.dim}✗ ${model} removido dos favoritos.${COLORS.reset}\n`);
-      } else {
-        configStore.appendToArray("favoriteModels", model, 20);
-        console.log(`${COLORS.green}★ ${model} adicionado aos favoritos! Aparece no topo da lista /model.${COLORS.reset}\n`);
-      }
-      continue;
-    }
-    if (lowerMsg === '/palette' || lowerMsg === '/cmd') {
-      const cmd = await commandPalette("HiperRouter Commands");
-      if (cmd) {
-        rawUserMessage = cmd;
-        lowerMsg = cmd.toLowerCase().trim();
-      } else {
-        continue;
-      }
-    }
-    if (lowerMsg.startsWith('/history')) {
-      const n = parseInt(lowerMsg.split(' ')[1]) || 10;
-      const recent = messages.filter(m => m.role !== 'system').slice(-n * 2);
-      if (recent.length === 0) { console.log(`${COLORS.dim}Nenhuma mensagem no histórico.${COLORS.reset}\n`); }
-      recent.forEach(m => {
-        const isUser = m.role === 'user';
-        const prefix = isUser ? `${COLORS.green}Você` : `${COLORS.cyan}IA`;
-        const snippet = m.content.length > 400 ? m.content.substring(0, 400) + '…' : m.content;
-        console.log(`\n${prefix}:${COLORS.reset} ${snippet}`);
-      });
-      console.log();
-      continue;
-    }
-    if (lowerMsg === '/status') {
-      try {
-        const res = await fetch(`http://localhost:${port}/api/health`, { signal: AbortSignal.timeout(3000) });
-        console.log(res.ok
-          ? `${COLORS.green}✅ Servidor UP (porta ${port}) — ${res.status}${COLORS.reset}\n`
-          : `${COLORS.red}⚠️  Servidor respondeu ${res.status} na porta ${port}${COLORS.reset}\n`);
-      } catch {
-        console.log(`${COLORS.red}❌ Servidor inacessível na porta ${port}${COLORS.reset}\n`);
-      }
-      continue;
-    }
-    if (lowerMsg === '/undo') {
-      // Encontra o .bak mais recente criado pelos patches desta sessão
-      const baks = [];
-      try {
-        const findBaks = (dir, depth = 0) => {
-          if (depth > 5) return;
-          for (const f of fs.readdirSync(dir)) {
-            const fp = path.join(dir, f);
-            try {
-              const st = fs.statSync(fp);
-              if (st.isDirectory() && !f.startsWith('.') && f !== 'node_modules') findBaks(fp, depth + 1);
-              else if (f.endsWith('.bak')) baks.push({ fp, mtime: st.mtimeMs });
-            } catch(e) {}
-          }
-        };
-        findBaks(process.cwd());
-      } catch(e) {}
-      if (baks.length === 0) {
-        console.log(`${COLORS.dim}Nenhum arquivo .bak encontrado para restaurar.${COLORS.reset}\n`);
-      } else {
-        baks.sort((a, b) => b.mtime - a.mtime);
-        const newest = baks[0].fp;
-        const original = newest.replace(/\.bak$/, '');
-        const { confirm } = require('./utils/input');
-        const ok = await confirm(`\n${COLORS.yellow}Restaurar '${original}' a partir do backup '${newest}'?${COLORS.reset}`);
-        if (ok) {
-          fs.copyFileSync(newest, original);
-          fs.unlinkSync(newest);
-          console.log(`${COLORS.green}✅ Arquivo restaurado com sucesso.${COLORS.reset}\n`);
-        }
-      }
-      continue;
-    }
-    if (lowerMsg.startsWith('/save')) {
-      const arg = rawUserMessage.substring(5).trim();
-      const dateStr = new Date().toISOString().slice(0, 10);
-      const filename = arg || `chat-${dateStr}.md`;
-      const fullSavePath = path.resolve(process.cwd(), filename);
-      const lines = [`# Chat Session \u2014 ${new Date().toLocaleString('pt-BR')}\n\n`];
-      const chatMessages = messages.filter(m => m.role !== 'system');
-      if (chatMessages.length === 0) {
-        console.log(`${COLORS.dim}Nenhuma mensagem na sess\u00e3o para salvar.${COLORS.reset}\n`);
-      } else {
-        chatMessages.forEach(m => {
-          const header = m.role === 'user' ? '## \u{1F464} Voc\u00ea' : '## \u{1F916} IA';
-          lines.push(`${header}\n\n${m.content}\n\n---\n\n`);
-        });
-        try {
-          fs.writeFileSync(fullSavePath, lines.join(''));
-          console.log(`${COLORS.green}\u2705 Conversa salva em '${filename}'${COLORS.reset}\n`);
-        } catch(e) {
-          console.log(`${COLORS.red}Erro ao salvar: ${e.message}${COLORS.reset}\n`);
-        }
-      }
-      continue;
-    }
-    if (lowerMsg === '/copy') {
-      const lastAiMsg = [...messages].reverse().find(m => m.role === 'assistant');
-      if (!lastAiMsg) {
-        console.log(`${COLORS.dim}Nenhuma resposta da IA no histórico para copiar.${COLORS.reset}\n`);
-      } else {
-        const { copyToClipboard } = require('./utils/clipboard');
-        const ok = copyToClipboard(lastAiMsg.content);
-        if (ok) console.log(`${COLORS.green}✅ Última resposta da IA copiada para a área de transferência!${COLORS.reset}\n`);
-        else console.log(`${COLORS.red}Falha ao copiar para a área de transferência.${COLORS.reset}\n`);
-      }
-      continue;
-    }
-    if (lowerMsg === '/copy-code') {
-      const lastAiMsg = [...messages].reverse().find(m => m.role === 'assistant');
-      if (!lastAiMsg) {
-        console.log(`${COLORS.dim}Nenhuma resposta da IA no histórico para copiar.${COLORS.reset}\n`);
-      } else {
-        const codeMatches = [...lastAiMsg.content.matchAll(/```(?:\w+)?\n([\s\S]*?)```/g)];
-        if (codeMatches.length === 0) {
-          console.log(`${COLORS.dim}Nenhum bloco de código encontrado na última resposta.${COLORS.reset}\n`);
-        } else {
-          const lastCode = codeMatches[codeMatches.length - 1][1].trim();
-          const { copyToClipboard } = require('./utils/clipboard');
-          const ok = copyToClipboard(lastCode);
-          if (ok) console.log(`${COLORS.green}✅ Último bloco de código copiado para a área de transferência!${COLORS.reset}\n`);
-          else console.log(`${COLORS.red}Falha ao copiar para a área de transferência.${COLORS.reset}\n`);
-        }
-      }
-      continue;
-    }
-    if (lowerMsg === '/paste') {
-      console.log(`\n${COLORS.cyan}📋 Modo Colar Multilinhas Ativado${COLORS.reset}`);
-      console.log(`${COLORS.dim}Cole seu texto. Digite 'END' ou '---' em uma nova linha para enviar:${COLORS.reset}`);
-      const pasteBuffer = [];
-      while (true) {
-        const line = await prompt(`${COLORS.dim}| ${COLORS.reset}`);
-        if (line === 'END' || line === '---' || line === '/send') break;
-        pasteBuffer.push(line);
-      }
-      rawUserMessage = pasteBuffer.join('\n').trim();
-      if (!rawUserMessage) {
-        console.log(`${COLORS.dim}Entrada vazia descartada.${COLORS.reset}\n`);
-        continue;
-      }
-      lowerMsg = rawUserMessage.toLowerCase().trim();
-      console.log(`${COLORS.dim}[Mensagem multilinhas capturada: ${pasteBuffer.length} linhas]${COLORS.reset}\n`);
-    }
+
+    // Still need to handle /read (with wildcard support) and /model (interactive) in chatUI 
+    // because they deeply interact with chatUI local state (appendedContext, newModel confirm, etc).
+    
     let appendedContext = "";
     if (lowerMsg === '/paste-image' || lowerMsg.startsWith('/image') || lowerMsg === '/img') {
       const arg = rawUserMessage.replace(/^\/(?:paste-image|image|img)\s*/i, '').trim();
@@ -653,50 +513,26 @@ código novo (o que vai entrar no lugar)
         continue;
       }
     }
-    if (lowerMsg === '/rollback') {
-      const ok = rollbackGitCheckpoint();
-      if (ok) console.log(`${COLORS.green}✅ Rollback executado com sucesso! Estado do repositório restaurado.${COLORS.reset}\n`);
-      else console.log(`${COLORS.red}Nenhum checkpoint anterior encontrado ou falha ao reverter.${COLORS.reset}\n`);
-      continue;
-    }
-    if (lowerMsg.startsWith('/audit')) {
-      const n = parseInt(lowerMsg.split(' ')[1]) || 15;
-      showAuditLogs(n);
-      continue;
-    }
-    if (lowerMsg === '/stats') {
-      const elapsedSec = Math.round((Date.now() - sessionStartTime) / 1000);
-      const min = Math.floor(elapsedSec / 60);
-      const sec = elapsedSec % 60;
-      console.log(`\n📊 ${COLORS.bright}Telemetria da Sessão (God Mode)${COLORS.reset}`);
-      console.log(`  - ${COLORS.cyan}Modelo Ativo:${COLORS.reset} ${model}`);
-      console.log(`  - ${COLORS.cyan}Requisições Realizadas:${COLORS.reset} ${sessionRequestCount}`);
-      console.log(`  - ${COLORS.cyan}Tokens Est. Acumulados:${COLORS.reset} ${sessionTotalTokens.toLocaleString('pt-BR')}`);
-      console.log(`  - ${COLORS.cyan}Tempo de Sessão:${COLORS.reset} ${min}m ${sec}s`);
-      console.log(`  - ${COLORS.cyan}Audit Log:${COLORS.reset} .HiperRouter/audit.log\n`);
-      continue;
-    }
-    if (lowerMsg === '/help' || lowerMsg === 'help') {
-      showHelp();
-      continue;
-    }
 
-    // appendedContext already declared before /paste-image block above
     const readMatch = rawUserMessage.match(/(?:^|\s)\/read\s+([^\s]+)/i);
     if (readMatch) {
-      const filePath = readMatch[1];
-      const fullPath = path.resolve(process.cwd(), filePath);
-      if (fs.existsSync(fullPath)) {
-        const fileContent = sanitizePromptContext(fs.readFileSync(fullPath, "utf-8"));
-        appendedContext = `\n\n[CONTEÚDO LIDO DE '${filePath}']:\n\`\`\`\n${fileContent}\n\`\`\``;
-        console.log(`${COLORS.dim}[Modo Read: Arquivo '${filePath}' injetado]${COLORS.reset}`);
-        rawUserMessage = rawUserMessage.replace(readMatch[0], "").trim();
-        lowerMsg = rawUserMessage.toLowerCase().trim();
-      } else {
-        console.log(`${COLORS.red}Aviso: Arquivo '${filePath}' não encontrado. Ignorando /read.${COLORS.reset}\n`);
-        rawUserMessage = rawUserMessage.replace(readMatch[0], "").trim();
-        lowerMsg = rawUserMessage.toLowerCase().trim();
+      const { readFilesByWildcard } = require("./chat/wildcard");
+      const pattern = readMatch[1];
+      const filesToRead = pattern.includes('*') ? readFilesByWildcard(pattern) : [path.resolve(process.cwd(), pattern)];
+      
+      let allContent = "";
+      for (const fullPath of filesToRead) {
+        if (fs.existsSync(fullPath) && fs.statSync(fullPath).isFile()) {
+           const fileContent = sanitizePromptContext(fs.readFileSync(fullPath, "utf-8"));
+           allContent += `\n\n[CONTEÚDO LIDO DE '${path.basename(fullPath)}']:\n\`\`\`\n${fileContent}\n\`\`\``;
+           console.log(`${COLORS.dim}[Modo Read: Arquivo '${path.basename(fullPath)}' injetado]${COLORS.reset}`);
+        } else if (!pattern.includes('*')) {
+           console.log(`${COLORS.red}Aviso: Arquivo '${pattern}' não encontrado. Ignorando /read.${COLORS.reset}\n`);
+        }
       }
+      appendedContext += allContent;
+      rawUserMessage = rawUserMessage.replace(readMatch[0], "").trim();
+      lowerMsg = rawUserMessage.toLowerCase().trim();
     }
 
     if (!rawUserMessage && !['/debug', '/commit', '/review'].includes(lowerMsg) && !appendedContext) continue;

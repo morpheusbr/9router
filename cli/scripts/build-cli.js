@@ -103,7 +103,7 @@ if (appPkg.version !== cliPkg.version) {
 // Step 0b: Ensure better-sqlite3 is resolvable for webpack build
 console.log("0️⃣b Ensuring build dependencies...");
 try {
-  execSync("npm install better-sqlite3 --ignore-scripts --no-save", { cwd: appDir, stdio: "inherit" });
+  execSync("npm install better-sqlite3 --no-save", { cwd: appDir, stdio: "inherit" });
 } catch (e) {}
 
 // Step 1: Build app with Next.js (workspace tracing root → traced node_modules in standalone).
