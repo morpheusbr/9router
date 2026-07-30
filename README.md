@@ -3,12 +3,141 @@
   
   # HiperRouter
   
+  **The Ultimate AI Router & Assistant (Advanced HiperRouter Fork)**<br>
   **O Roteador e Assistente de IA Definitivo (Fork Avançado do HiperRouter)**
+
+  <br>
+
+  [![English](https://img.shields.io/badge/Language-English-blue)](#-english-version)
+  [![Português](https://img.shields.io/badge/Idioma-Português-green)](#-versão-em-português)
 </div>
 
 ---
 
-## 🚀 Sobre o HiperRouter
+## 🇺🇸 English Version
+
+### 🚀 About HiperRouter
+
+**HiperRouter** started as a fork of the `9router` project but has evolved into a powerful, standalone development tool. It combines token savings (via RTK) with a super-intelligent **God Mode AI Agent** that lives directly in your terminal, acting as your Assistant Senior Software Engineer.
+
+We maintain full proxy compatibility for tools like Claude Code, Cursor, Cline, and others, while injecting local autonomy superpowers.
+
+---
+
+### ✨ Key Features (Fork Exclusives)
+
+- 🧠 **Integrated God Mode AI Agent**: A conversational CLI agent capable of reading code, understanding architecture, and autonomously proposing/modifying files with surgical precision.
+- 🛡️ **Enterprise Security**:
+  - **Secret Leak Guard**: Automatic masking of passwords, JWTs, and keys (`sk-...`, `ghp_...`) in contexts sent to the AI (`[REDACTED_SECRET]`).
+  - **Auto-Checkpoint & `/rollback`**: Temporary Git snapshots before edits. Type `/rollback` to instantly revert any AI changes.
+  - **Infinite Loop & Token Burn Guard**: Smart blocking against self-healing infinite loops.
+  - **Immutable Audit Log**: Records security events in `.HiperRouter/audit.log` (`/audit`).
+- 🎨 **Superior Developer Experience (DX/UX)**:
+  - **Visual Diff Preview**: Colored diffs (`-` red / `+` green) before approving any patch.
+  - **Tab Completion**: Press `Tab` after `/` to autocomplete any command.
+  - **Productivity Shortcuts**: `/copy`, `/copy-code`, `/paste` (multiline), `/save` (export chat to MD), `/stats` (token telemetry).
+  - **Built-in Help Center**: Detailed `/help` command covering all features.
+- 👑 **Graphify (Knowledge Graph) Integration**: Complete and continuous mapping of your codebase (`graphify-out`) with reactive reloading in the chat.
+- 🛠️ **Self-Healing Bash**: Executes scripts, reads terminal errors, and performs iterative self-correction.
+- ⚡ **RTK - Rust Token Killer**: Replaces raw `bash` in internal operations, saving up to 90% of token overhead.
+- 📦 **Zero Downtime Build**: Build flow protected by a shell script (`build-seguro.sh`) without taking the router down in production.
+
+---
+
+### 📖 God Mode CLI Commands (`/help`)
+
+| Command | Description |
+|---|---|
+| `/plan <instructions>` | Planning Mode: Generates architecture/plan without altering code. |
+| `/code <instructions>` | Coding Mode: Simulates architecture and QA sub-agents before coding. |
+| `/test <file>` | Test Generator: Analyzes the file and creates unit tests. |
+| `/commit` | Auto-Commit: Analyzes the git diff and performs a semantic commit. |
+| `/review` | Code Audit: Reviews the git diff looking for bugs, Zod issues, and SSRF. |
+| `/read <file>` | Reader: Injects the content of a local file into the conversation. |
+| `/model` | Change Model: Interactive menu with ↑↓ arrows to swap the LLM. |
+| `/history [n]` | History: Displays the last N messages exchanged in the chat. |
+| `/status` | API Status: Checks if the proxy server is responding. |
+| `/undo` | Restore Backup: Reverts the file to the latest `.bak` backup. |
+| `/save [file]` | Save Chat: Exports the conversation to a Markdown file. |
+| `/copy` | Copy Response: Copies the entire last AI response to the clipboard. |
+| `/copy-code` | Copy Code: Copies only the last code block to the clipboard. |
+| `/paste` | Multiline Mode: Buffer to paste extensive prompts or logs. |
+| `/rollback` | Repo Rollback: Reverts git to the pre-patch/command snapshot. |
+| `/audit [n]` | Audit Log: Displays events saved in `.HiperRouter/audit.log`. |
+| `/stats` | Telemetry: Displays requests, tokens consumed, and session time. |
+| `/help` | Help Center: Displays the detailed list of commands. |
+| `/clear` | Clear Chat: Resets the message history and clears the screen. |
+| `/exit` | Exit: Ends the HiperRouter Agent session. |
+
+---
+
+### 🔧 Project Structure
+
+* `cli/` - Entry point for the God Mode AI Agent (`cli.js`) and the entire conversational shell.
+* `src/` - Router logic, proxying, and heavy backend manipulation.
+* `app/` - Next.js Dashboard application, compiled via `build-seguro.sh`.
+* `.HiperRouter/` - Location for the database (SQLite), isolated contexts, audit logs (`audit.log`), and key states.
+
+---
+
+### ⚡ Quick Start
+
+#### 📦 Option 1: Via NPM (Recommended)
+Install the official package globally on your system to use it in any project:
+```bash
+npm install -g hiperrouter
+
+# Run the HiperRouter Agent & Server
+hiperrouter
+```
+
+#### 🚀 Option 2: Run directly without installing
+Execute directly via `npx`:
+```bash
+npx hiperrouter
+```
+
+#### 🐳 Option 3: Via Docker
+```bash
+docker run -d --name hiperrouter -p 20128:20128 \
+  -v "$HOME/.HiperRouter:/app/data" -e DATA_DIR=/app/data \
+  morpheusbr/HiperRouter:latest
+```
+
+#### 💻 Option 4: From Source Code (Git Clone)
+Clone the official GitHub repository:
+```bash
+git clone https://github.com/morpheusbr/HiperRouter.git
+cd HiperRouter
+npm install
+node cli/cli.js
+```
+
+#### 🤖 Chatting with the AI (God Mode)
+In the CLI terminal, the smart assistant will start automatically. Type `/help` at any time to see the list of available commands or press `Tab` to autocomplete.
+
+---
+
+### 🛡️ Rules and Development
+
+This repository follows strict rules dictated by the `AGENTS.md` file. If you are an AI agent reading this document, remember:
+1. **Zero `any` Policy** (Strict TypeScript).
+2. Do not delete dead code without approval or a DEPRECATED flag.
+3. ALWAYS update the graph with `rtk graphify update .` at the end of changes.
+4. Use `rtk` before suggested or executed bash commands.
+
+---
+
+### 📄 License
+We maintain the original roots. MIT License.
+
+<br>
+<hr>
+<br>
+
+## 🇧🇷 Versão em Português
+
+### 🚀 Sobre o HiperRouter
 
 O **HiperRouter** nasceu como um fork do projeto `9router`, mas evoluiu para se tornar uma poderosa ferramenta autônoma de desenvolvimento. Ele combina a economia de tokens (via RTK) com um **God Mode AI Agent** super inteligente que vive diretamente no seu terminal, atuando como um Engenheiro de Software Sênior assistente.
 
@@ -16,7 +145,7 @@ Nós mantemos a compatibilidade total de proxy para ferramentas como Claude Code
 
 ---
 
-## ✨ Nossos Diferenciais (Features Exclusivas do Fork)
+### ✨ Nossos Diferenciais (Features Exclusivas do Fork)
 
 - 🧠 **God Mode AI Agent Integrado**: Um agente conversacional em CLI capaz de ler código, entender arquitetura e propor/modificar arquivos autonomamente com alta precisão cirúrgica.
 - 🛡️ **Defesas de Nível Militar (Enterprise Security)**:
@@ -28,7 +157,7 @@ Nós mantemos a compatibilidade total de proxy para ferramentas como Claude Code
   - **Visual Diff Preview**: Diffs coloridos (`-` vermelho / `+` verde) antes de aprovar qualquer patch.
   - **Tab Completion**: Pressione `Tab` após `/` para autocompletar qualquer comando.
   - **Atalhos Produtivos**: `/copy`, `/copy-code`, `/paste` (multilinhas), `/save` (exportar chat em MD), `/stats` (telemetria de tokens).
-  - **Central de Ajuda Integrada**: Comando `/help` detalhando todos os 24 comandos.
+  - **Central de Ajuda Integrada**: Comando `/help` detalhando todos os comandos.
 - 👑 **Graphify (Knowledge Graph) Integration**: Mapeamento completo e contínuo da sua codebase (`graphify-out`) com recarregamento reativo no chat.
 - 🛠️ **Self-Healing Bash**: Executa scripts, lê erros de terminal e realiza auto-correção iterativa.
 - ⚡ **RTK - Rust Token Killer**: Substituto do `bash` puro nas operações internas, poupando até 90% do overhead de tokens.
@@ -36,7 +165,7 @@ Nós mantemos a compatibilidade total de proxy para ferramentas como Claude Code
 
 ---
 
-## 📖 Comandos do God Mode CLI (`/help`)
+### 📖 Comandos do God Mode CLI (`/help`)
 
 | Comando | Descrição |
 |---|---|
@@ -63,7 +192,7 @@ Nós mantemos a compatibilidade total de proxy para ferramentas como Claude Code
 
 ---
 
-## 🔧 Estrutura do Projeto
+### 🔧 Estrutura do Projeto
 
 * `cli/` - Ponto de entrada do God Mode AI Agent (`cli.js`) e todo o shell conversacional.
 * `src/` - Lógica do roteador, proxying e manipulação pesada de backend.
@@ -72,9 +201,9 @@ Nós mantemos a compatibilidade total de proxy para ferramentas como Claude Code
 
 ---
 
-## ⚡ Instalação & Começando Rápidamente (Quick Start)
+### ⚡ Instalação & Começando Rápidamente (Quick Start)
 
-### 📦 Opção 1: Via NPM (Recomendado)
+#### 📦 Opção 1: Via NPM (Recomendado)
 Instale o pacote oficial globalmente no seu sistema para usar em qualquer projeto:
 ```bash
 npm install -g hiperrouter
@@ -83,19 +212,20 @@ npm install -g hiperrouter
 hiperrouter
 ```
 
-Ou execute diretamente sem instalar nada usando `npx`:
+#### 🚀 Opção 2: Executar diretamente sem instalar
+Execute diretamente usando `npx`:
 ```bash
 npx hiperrouter
 ```
 
-### 🐳 Opção 2: Via Docker
+#### 🐳 Opção 3: Via Docker
 ```bash
 docker run -d --name hiperrouter -p 20128:20128 \
   -v "$HOME/.HiperRouter:/app/data" -e DATA_DIR=/app/data \
   morpheusbr/HiperRouter:latest
 ```
 
-### 💻 Opção 3: A partir do Código-Fonte (Git Clone)
+#### 💻 Opção 4: A partir do Código-Fonte (Git Clone)
 Clone o repositório oficial do GitHub:
 ```bash
 git clone https://github.com/morpheusbr/HiperRouter.git
@@ -104,12 +234,12 @@ npm install
 node cli/cli.js
 ```
 
-### 🤖 Conversar com a IA (God Mode)
-No terminal do CLI, o assistente inteligente iniciará automaticamente. Digite `/help` a qualquer momento para ver a lista de 25 comandos disponíveis ou pressione `Tab` para autocompletar.
+#### 🤖 Conversar com a IA (God Mode)
+No terminal do CLI, o assistente inteligente iniciará automaticamente. Digite `/help` a qualquer momento para ver a lista de comandos disponíveis ou pressione `Tab` para autocompletar.
 
 ---
 
-## 🛡️ Regras e Desenvolvimento
+### 🛡️ Regras e Desenvolvimento
 
 Este repositório segue regras rigorosas ditadas pelo arquivo `AGENTS.md`. Se você é um agente de IA lendo este documento, lembre-se:
 1. **Zero `any` Policy** (TypeScript restrito).
@@ -119,5 +249,5 @@ Este repositório segue regras rigorosas ditadas pelo arquivo `AGENTS.md`. Se vo
 
 ---
 
-## 📄 Licença
+### 📄 Licença
 Mantemos as raízes originais. MIT License.
