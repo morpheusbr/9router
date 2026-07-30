@@ -1,6 +1,6 @@
 {
   "name": "hiperrouter-app",
-  "version": "0.6.3",
+  "version": "0.6.4",
   "description": "HiperRouter web dashboard",
   "private": true,
   "scripts": {
@@ -23,6 +23,7 @@
     "@next/third-parties": "^16.2.9",
     "@xyflow/react": "^12.10.1",
     "bcryptjs": "^3.0.3",
+    "better-sqlite3": "^13.0.2",
     "confbox": "^0.2.4",
     "express": "^5.2.1",
     "http-proxy-middleware": "^3.0.5",
@@ -46,9 +47,6 @@
     "uuid": "^13.0.0",
     "zod": "^4.4.3",
     "zustand": "^5.0.10"
-  },
-  "optionalDependencies": {
-    "better-sqlite3": "^12.6.2"
   },
   "comment_better_sqlite3": "kept in optionalDependencies so npm install doesn't fail on systems without build tools — sql.js is used as fallback at runtime",
   "devDependencies": {
