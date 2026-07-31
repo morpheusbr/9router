@@ -34,13 +34,13 @@ async function showMenuWithBack(config) {
       }
     }
 
-    // Build menu items with back at top
+    // Build menu items with back at bottom so 1..9 map directly to items
     const menuItems = [
-      { label: backLabel, icon: "☆" },
       ...items.map(item => ({
         label: typeof item.label === "function" ? item.label(refreshedData) : item.label,
         icon: "☆"
-      }))
+      })),
+      { label: backLabel, icon: "☆" }
     ];
 
     // Resolve headerContent if it's a function
@@ -58,13 +58,12 @@ async function showMenuWithBack(config) {
     );
 
     // Back or ESC
-    if (selected === -1 || selected === 0) {
+    if (selected === -1 || selected === menuItems.length - 1) {
       return;
     }
 
     // Execute action for selected item
-    const actionIndex = selected - 1;
-    const item = items[actionIndex];
+    const item = items[selected];
     
     if (item && item.action) {
       const shouldContinue = await item.action(refreshedData);

@@ -1,5 +1,19 @@
 #!/usr/bin/env node
 
+process.on("uncaughtException", (err, origin) => {
+  console.error(`\n❌ Uncaught Exception. This is a bug in HiperRouter CLI.`);
+  console.error(`   Origin: ${origin}`);
+  console.error(`   Error: ${err.stack || err.message}\n`);
+  process.exit(1);
+});
+
+process.on("unhandledRejection", (reason, promise) => {
+  console.error('\n❌ Unhandled Rejection. This is a bug in HiperRouter CLI.');
+  console.error(`   Reason: ${reason.stack || reason}\n`);
+  // Optionally log the promise that was rejected
+  // console.error(promise);
+});
+
 const path = require("path");
 const fs = require("fs");
 const { spawn } = require("child_process");
@@ -42,12 +56,6 @@ const args = process.argv.slice(2);
   try { ensureSqliteRuntime({ silent: true }); } catch (e) { if (process.env.DEBUG) console.warn("[self-heal] SQLite:", e.message); }
   try { ensureTrayRuntime({ silent: true }); } catch (e) { if (process.env.DEBUG) console.warn("[self-heal] Tray:", e.message); }
 
-  // Global error handlers — prevent silent crashes
-  process.on("unhandledRejection", (reason) => {
-    console.error("Unhandled rejection:", reason instanceof Error ? reason.message : reason);
-    if (process.env.DEBUG) console.error(reason);
-  });
-
   const { getCliDataDir } = require("./src/cli/constants");
 
   function getLockFilePath() {
@@ -89,6 +97,18 @@ const args = process.argv.slice(2);
       }
     } catch {}
   }
+
+  process.on("SIGINT", () => {
+    releaseLock();
+    process.exit(0);
+  });
+  process.on("SIGTERM", () => {
+    releaseLock();
+    process.exit(0);
+  });
+  process.on("exit", () => {
+    releaseLock();
+  });
 
   const lockHolder = acquireLock();
   if (lockHolder) {
@@ -161,6 +181,10 @@ Options:
   -v, --version       Show version
 
 Commands:
+  doctor              Run system health check (Node, SQLite, ports, permissions)
+  sync [tool]         Auto-configure VSCode, Kilo, OpenCode or Cursor to use HiperRouter
+  alias <list|set|rm> Manage model alias mappings
+  task "<prompt>"     Run headless agent task in background
   xai video --prompt "..." --output video.mp4
                       Generate a Grok Imagine video via the running gateway
                       (see: ${APP_NAME} xai video --help)
@@ -259,6 +283,13 @@ Commands:
         stdio: ["ignore", "pipe", "pipe"],
       });
 
+      serverProcess.on("error", (err) => {
+        console.error(`\x1b[31m❌ Failed to start server process. This is a fatal error.\x1b[0m`);
+        console.error(`   Error: ${err.message}`);
+        cleanup();
+        process.exit(1);
+      });
+
       let serverStderrBuffer = [];
       const MAX_BUFFER = 100;
 
@@ -273,10 +304,14 @@ Commands:
       if (serverProcess.stderr) {
         serverProcess.stderr.on("data", (chunk) => {
           const str = chunk.toString();
-          if (showLog) process.stderr.write(chunk);
-          else {
+          if (showLog) {
+            process.stderr.write(chunk);
+          } else {
             const msg = str.trim();
-            if (msg && !msg.includes("EADDRINUSE")) console.error(`[server] ${msg}`);
+            if (msg) {
+              // Always log errors, filter for display later if needed
+              console.error(`[server] ${msg}`);
+            }
           }
           const lines = str.split("\n");
           for (const l of lines) {

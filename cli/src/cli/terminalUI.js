@@ -130,6 +130,54 @@ async function startTerminalUI(port) {
         }
       },
       {
+        label: "Usage & Telemetry",
+        action: async () => {
+          const { run } = require("./commands/stats");
+          await run([]);
+          const { pause } = require("./utils/input");
+          await pause();
+          return true;
+        }
+      },
+      {
+        label: "Proxy Pools",
+        action: async () => {
+          const api = require("./api/client");
+          console.log(`\n⏳ Buscando Proxy Pools...`);
+          try {
+            const res = await api.makeRequest("GET", "/api/proxy-pools");
+            console.log(JSON.stringify(res.data || res, null, 2));
+          } catch(e) { console.log(`Erros: ${e.message}`); }
+          const { pause } = require("./utils/input");
+          await pause();
+          return true;
+        }
+      },
+      {
+        label: "PxPipe & MITM Status",
+        action: async () => {
+          const api = require("./api/client");
+          console.log(`\n⏳ Buscando status do PxPipe/MITM...`);
+          try {
+            const res = await api.makeRequest("GET", "/api/pxpipe/status");
+            console.log(JSON.stringify(res.data || res, null, 2));
+          } catch(e) { console.log(`Erros: ${e.message}`); }
+          const { pause } = require("./utils/input");
+          await pause();
+          return true;
+        }
+      },
+      {
+        label: "Skills & Custom Agents",
+        action: async () => {
+          const { run } = require("./commands/memory");
+          await run([]);
+          const { pause } = require("./utils/input");
+          await pause();
+          return true;
+        }
+      },
+      {
         label: "Settings",
         action: async () => {
           await showSettingsMenu([...basePath, "Settings"]);

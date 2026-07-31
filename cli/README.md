@@ -97,6 +97,11 @@ Run `hiperrouter` and select **"Chat (Interactive)"** from the menu to enter God
 
 ### ✨ Agent Features
 
+- **🔢 Numbered TUI & Shortcuts:** Direct `[1]`..`[34]` keyboard shortcuts with zero-Enter instant navigation and live filtering.
+- **🌐 100% Web Parity & i18n:** Full feature parity with Web Dashboard (`/tokensaver`, `/translator`, `/media`, `/quota`, `/consolelog`, `/endpoint`) + Multilingual support (`pt-BR`, `en-US`, OS auto-detect).
+- **🛡️ Auto-Approve Editing Guard:** Configurable autonomy levels (Always Ask, Auto-Approve Code Patches, Total Autonomous Mode).
+- **🧠 Multi-Model Consensus & SAST:** Consensus Engine (`/consensus`), Static Security Auditor (`/security`), Smart Test Auto-Fixer (`/run-tests`), Mermaid Architecture Generator (`/architecture`).
+- **🚪 Safety Exit Guard:** Double `Ctrl+C` in 3 seconds to prevent accidental chat termination.
 - **🧠 Context Isolation:** Automatically isolates chat history (`chat_history_<hash>.json`) per project directory. You can use the AI across multiple repositories without context bleeding!
 - **🔍 Auto-Discovery:** The AI can autonomously search your codebase (`grep`) and read files to answer complex questions without you needing to copy/paste code.
 - **🩹 Smart Patching:** Applies surgical, line-by-line updates to your code instead of rewriting entire files.

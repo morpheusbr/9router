@@ -11,9 +11,18 @@ function getActionPrefix(actionKey) {
   return actionKey.trim().split(/\s+/).slice(0, 3).join(" ");
 }
 
+const configStore = require("./utils/configStore");
+
 async function confirmWithAuto(question, actionKey) {
+  const approvalMode = configStore.get("autoApproveMode", "ask"); // "ask", "patches", "all"
+
+  // Auto-approval logic based on global user setting
+  if (approvalMode === "all") return true;
+  if (approvalMode === "patches" && (actionKey.startsWith("patch:") || actionKey.startsWith("file:"))) return true;
+
   const prefixKey = getActionPrefix(actionKey);
   if (autoApprovedCommands.has(actionKey) || autoApprovedCommands.has(prefixKey)) return true;
+
   while (true) {
     const answer = await prompt(`${question} (y/n/s/t): `);
     const lower = answer.toLowerCase();
@@ -384,6 +393,8 @@ async function startChatUI(port) {
   const sessionStartTime = Date.now();
   let sessionRequestCount = 0;
   let sessionTotalTokens = 0;
+  let lastGitCheckpoint = null;
+  let lastCtrlCTime = 0;
 
   let messages = [];
   const historyFile = getHistoryFilePath();
@@ -447,12 +458,42 @@ código novo (o que vai entrar no lugar)
       }
     } catch(e) {}
 
-    // Status bar: model | port | messages | uptime
+    // Modern Status bar & Rounded Input Box with dynamic ANSI-stripped padding alignment
     const uptimeMin = Math.round((Date.now() - sessionStartTime) / 60000);
-    const statusLine = `${COLORS.dim}│ ${model} │ :${port} │ ${messages.length} msgs │ ${sessionRequestCount} reqs │ ${uptimeMin}m │${COLORS.reset}`;
-    console.log(statusLine);
+    const activePersona = require("./utils/configStore").get("activePersona") || "god";
+    const activeLang = require("./utils/locale").getActiveLanguage();
+    const rawStatus = ` 🤖 Model: ${model} │ ⚡ Persona: ${activePersona.toUpperCase()} │ 🌐 Lang: ${activeLang} │ 📡 Port: :${port} │ 💬 Msgs: ${messages.length} │ ⏱️ Uptime: ${uptimeMin}m `;
+    const boxWidth = Math.max(78, rawStatus.length + 4);
+    const innerWidth = boxWidth - 2;
+    const paddingRight = Math.max(0, innerWidth - rawStatus.length);
 
-    let rawUserMessage = await prompt(`${COLORS.green}Você: ${COLORS.reset}`);
+    const coloredStatus = ` 🤖 Model: ${COLORS.cyan}${model}${COLORS.reset} │ ⚡ Persona: ${COLORS.green}${activePersona.toUpperCase()}${COLORS.reset} │ 🌐 Lang: ${COLORS.cyan}${activeLang}${COLORS.reset} │ 📡 Port: ${COLORS.yellow}:${port}${COLORS.reset} │ 💬 Msgs: ${messages.length} │ ⏱️ Uptime: ${uptimeMin}m ${" ".repeat(paddingRight)}`;
+
+    console.log(`\n${COLORS.cyan}╭${"─".repeat(innerWidth)}╮${COLORS.reset}`);
+    console.log(`${COLORS.cyan}│${COLORS.reset}${coloredStatus}${COLORS.cyan}│${COLORS.reset}`);
+    console.log(`${COLORS.cyan}╰${"─".repeat(innerWidth)}╯${COLORS.reset}`);
+
+    const promptTitle = "─[ Prompt ]";
+    const promptHeaderPad = Math.max(0, innerWidth - promptTitle.length);
+    const promptLabel = `${COLORS.bright}${COLORS.green}╭${promptTitle}${"─".repeat(promptHeaderPad)}╮\n│ 💬 ${COLORS.reset}`;
+    
+    let rawUserMessage = "";
+    try {
+      rawUserMessage = await prompt(promptLabel);
+      lastCtrlCTime = 0; // Reseta o contador ao digitar com sucesso
+    } catch (e) {
+      // Captura Ctrl+C no prompt
+      const now = Date.now();
+      if (now - lastCtrlCTime < 3000) {
+        console.log(`\n${COLORS.red}🚪 Encerrando sessão do HiperRouter Agent...${COLORS.reset}\n`);
+        break;
+      } else {
+        lastCtrlCTime = now;
+        console.log(`\n${COLORS.yellow}⚠️  Pressione Ctrl+C novamente para sair da sessão do chat.${COLORS.reset}\n`);
+        continue;
+      }
+    }
+    console.log(`${COLORS.green}╰${"─".repeat(innerWidth)}╯${COLORS.reset}\n`);
     let lowerMsg = rawUserMessage.toLowerCase().trim();
 
     // Ctrl+K → command palette
@@ -611,12 +652,166 @@ código novo (o que vai entrar no lugar)
       console.log(`\n💬 ${COLORS.bright}${COLORS.cyan}HiperRouter Agent (God Mode) 🚀${COLORS.reset} - Model: ${COLORS.dim}${model}${COLORS.reset}`);
       console.log(`${COLORS.dim}Comandos: /plan, /code, /test <arq>, /commit, /review, /skill, /debug, /read <arq>, /model, /web, /menu, /history [n], /status, /undo, /save [arq], /clear, /exit${COLORS.reset}\n`);
       continue;
-    } else if (lowerMsg === '/menu') {
+    } else if (lowerMsg === '/menu' || lowerMsg === 'menu') {
       const { startTerminalUI } = require("./terminalUI");
       await startTerminalUI(port);
       clearScreen();
       console.log(`\n💬 ${COLORS.bright}${COLORS.cyan}HiperRouter Agent (God Mode) 🚀${COLORS.reset} - Model: ${COLORS.dim}${model}${COLORS.reset}`);
       console.log(`${COLORS.dim}Comandos: /plan, /code, /test <arq>, /commit, /review, /skill, /debug, /read <arq>, /model, /web, /menu, /history [n], /status, /undo, /save [arq], /clear, /exit${COLORS.reset}\n`);
+      continue;
+    } else if (lowerMsg === '/doctor' || lowerMsg === 'doctor') {
+      const { run } = require("./commands/doctor");
+      await run([]);
+      const { pause } = require("./utils/input");
+      await pause();
+      continue;
+    } else if (lowerMsg === '/key' || lowerMsg === 'key' || lowerMsg === 'chaves') {
+      const { run } = require("./commands/key");
+      await run([]);
+      continue;
+    } else if (lowerMsg === '/backup' || lowerMsg === 'backup') {
+      const { run } = require("./commands/backup");
+      await run([]);
+      continue;
+    } else if (lowerMsg === '/stats' || lowerMsg === 'stats') {
+      const { run } = require("./commands/stats");
+      await run([]);
+      const { pause } = require("./utils/input");
+      await pause();
+      continue;
+    } else if (lowerMsg === '/mcp' || lowerMsg === 'mcp') {
+      const { run } = require("./commands/mcp");
+      await run([]);
+      continue;
+    } else if (lowerMsg === '/benchmark' || lowerMsg === 'benchmark') {
+      const { run } = require("./commands/benchmark");
+      await run([]);
+      const { pause } = require("./utils/input");
+      await pause();
+      continue;
+    } else if (lowerMsg === '/tunnel' || lowerMsg === 'tunnel') {
+      const { run } = require("./commands/tunnel");
+      await run([]);
+      const { pause } = require("./utils/input");
+      await pause();
+      continue;
+    } else if (lowerMsg === '/memory' || lowerMsg === 'memory') {
+      const { run } = require("./commands/memory");
+      await run([]);
+      const { pause } = require("./utils/input");
+      await pause();
+      continue;
+    } else if (lowerMsg === '/proxypools' || lowerMsg === 'proxypools' || lowerMsg === 'pools') {
+      const api = require("./api/client");
+      console.log(`\n🌊 ${COLORS.bright}POOLS DE PROXIES & CLOUDFLARE WORKERS:${COLORS.reset}`);
+      try {
+        const res = await api.makeRequest("GET", "/api/proxy-pools");
+        console.log(JSON.stringify(res.data || res, null, 2));
+      } catch(e) { console.log(`Erro: ${e.message}`); }
+      const { pause } = require("./utils/input");
+      await pause();
+      continue;
+    } else if (lowerMsg === '/providers' || lowerMsg === 'providers' || lowerMsg === 'provedores') {
+      const { showProvidersMenu } = require("./menus/providers");
+      await showProvidersMenu(["HiperRouter", "Providers"]);
+      clearScreen();
+      continue;
+    } else if (lowerMsg === '/combos' || lowerMsg === 'combos') {
+      const { showCombosMenu } = require("./menus/combos");
+      await showCombosMenu(["HiperRouter", "Combos"]);
+      clearScreen();
+      continue;
+    } else if (lowerMsg === '/alias' || lowerMsg === 'alias') {
+      const { run } = require("./commands/alias");
+      await run([]);
+      continue;
+    } else if (lowerMsg === '/personas' || lowerMsg === 'personas' || lowerMsg === 'persona') {
+      const { run } = require("./commands/personas");
+      await run([]);
+      continue;
+    } else if (lowerMsg === '/playground' || lowerMsg === 'playground' || lowerMsg === 'play') {
+      const { run } = require("./commands/playground");
+      await run([]);
+      continue;
+    } else if (lowerMsg === '/vacuum' || lowerMsg === 'vacuum' || lowerMsg === 'clean') {
+      const { run } = require("./commands/vacuum");
+      await run([]);
+      continue;
+    } else if (lowerMsg === '/logs' || lowerMsg === 'logs') {
+      const { run } = require("./commands/logs");
+      await run([]);
+      continue;
+    } else if (lowerMsg === '/keyhealth' || lowerMsg === 'keyhealth') {
+      const { run } = require("./commands/keyHealth");
+      await run([]);
+      continue;
+    } else if (lowerMsg.startsWith('/search ') || lowerMsg.startsWith('search ')) {
+      const query = rawUserMessage.replace(/^(\/search|search)\s+/i, "");
+      const { run } = require("./commands/websearch");
+      await run([query]);
+      continue;
+    } else if (lowerMsg.startsWith('/pack') || lowerMsg.startsWith('pack')) {
+      const parts = rawUserMessage.split(" ").slice(1);
+      const { run } = require("./commands/pack");
+      await run(parts);
+      continue;
+    } else if (lowerMsg === '/security' || lowerMsg === 'security' || lowerMsg === 'sast') {
+      const { run } = require("./commands/security");
+      await run([]);
+      continue;
+    } else if (lowerMsg === '/run-tests' || lowerMsg === 'run-tests' || lowerMsg === 'tests') {
+      const { run } = require("./commands/testRunner");
+      await run([]);
+      continue;
+    } else if (lowerMsg === '/architecture' || lowerMsg === 'architecture' || lowerMsg === 'arch') {
+      const { run } = require("./commands/architecture");
+      await run([]);
+      continue;
+    } else if (lowerMsg.startsWith('/consensus') || lowerMsg.startsWith('consensus')) {
+      const query = rawUserMessage.replace(/^(\/consensus|consensus)\s*/i, "");
+      const { run } = require("./commands/consensus");
+      await run([query]);
+      continue;
+    } else if (lowerMsg === '/watch' || lowerMsg === 'watch') {
+      const { run } = require("./commands/watcher");
+      await run([]);
+      continue;
+    } else if (lowerMsg === '/deps' || lowerMsg === 'deps') {
+      const { run } = require("./commands/deps");
+      await run([]);
+      continue;
+    } else if (lowerMsg === '/changelog' || lowerMsg === 'changelog') {
+      const { run } = require("./commands/changelog");
+      await run([]);
+      continue;
+    } else if (lowerMsg === '/tokensaver' || lowerMsg === 'tokensaver' || lowerMsg === 'tsaver') {
+      const { run } = require("./commands/tokensaver");
+      await run([]);
+      continue;
+    } else if (lowerMsg === '/translator' || lowerMsg === 'translator' || lowerMsg === 'tradutor') {
+      const { run } = require("./commands/translator");
+      await run([]);
+      continue;
+    } else if (lowerMsg === '/media' || lowerMsg === 'media') {
+      const { run } = require("./commands/media");
+      await run([]);
+      continue;
+    } else if (lowerMsg === '/quota' || lowerMsg === 'quota' || lowerMsg === 'cotas') {
+      const { run } = require("./commands/quota");
+      await run([]);
+      continue;
+    } else if (lowerMsg === '/consolelog' || lowerMsg === 'consolelog' || lowerMsg === 'console-log') {
+      const { run } = require("./commands/consoleLog");
+      await run([]);
+      continue;
+    } else if (lowerMsg === '/endpoint' || lowerMsg === 'endpoint') {
+      const { run } = require("./commands/endpoint");
+      await run([]);
+      continue;
+    } else if (lowerMsg === '/settings' || lowerMsg === 'settings' || lowerMsg === 'configuracoes') {
+      const { showSettingsMenu } = require("./menus/settings");
+      await showSettingsMenu(["HiperRouter", "Settings"]);
+      clearScreen();
       continue;
     } else if (lowerMsg === '/web') {
       const { getEndpoint } = require("./utils/endpoint");

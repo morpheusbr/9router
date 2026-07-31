@@ -32,15 +32,15 @@ We maintain full proxy compatibility for tools like Claude Code, Cursor, Cline, 
   - **Auto-Checkpoint & `/rollback`**: Temporary Git snapshots before edits. Type `/rollback` to instantly revert any AI changes.
   - **Infinite Loop & Token Burn Guard**: Smart blocking against self-healing infinite loops.
   - **Immutable Audit Log**: Records security events in `.HiperRouter/audit.log` (`/audit`).
-- 🎨 **Superior Developer Experience (DX/UX)**:
+- 🎨 **Superior Developer Experience (DX/UX Superior)**:
+  - **Numbered TUI Menus**: Direct `[1]`..`[34]` keyboard shortcuts with zero-Enter instant selection and real-time filter.
+  - **Full Web Parity**: 100% of Web Dashboard features available natively in CLI (`/tokensaver`, `/translator`, `/media`, `/quota`, `/consolelog`, `/endpoint`).
+  - **International i18n**: Multi-language support (`pt-BR`, `en-US`, OS auto-detect).
+  - **Auto-Approve Editing Guard**: Configurable autonomy levels (Always Ask, Auto-Approve Code Patches, Total Autonomous Mode).
+  - **Safety Exit Guard**: Double `Ctrl+C` in 3 seconds to prevent accidental chat termination.
   - **Visual Diff Preview**: Colored diffs (`-` red / `+` green) before approving any patch.
-  - **Tab Completion**: Press `Tab` after `/` to autocomplete any command.
-  - **Productivity Shortcuts**: `/copy`, `/copy-code`, `/paste` (multiline), `/save` (export chat to MD), `/stats` (token telemetry).
-  - **Built-in Help Center**: Detailed `/help` command covering all features.
-- 👑 **Graphify (Knowledge Graph) Integration**: Complete and continuous mapping of your codebase (`graphify-out`) with reactive reloading in the chat.
-- 🛠️ **Self-Healing Bash**: Executes scripts, reads terminal errors, and performs iterative self-correction.
-- ⚡ **RTK - Rust Token Killer**: Replaces raw `bash` in internal operations, saving up to 90% of token overhead.
-- 📦 **Zero Downtime Build**: Build flow protected by a shell script (`build-seguro.sh`) without taking the router down in production.
+  - **Tab Completion & Palette**: Press `Tab` for autocompletion or `Ctrl+K` for fuzzy Command Palette overlay.
+  - **Productivity Tools**: Multi-Model Consensus (`/consensus`), SAST Security Audit (`/security`), Auto-Fix Test Runner (`/run-tests`), Mermaid Architecture (`/architecture`), Live HTTP Stream (`/logs`).
 
 ---
 
@@ -48,26 +48,37 @@ We maintain full proxy compatibility for tools like Claude Code, Cursor, Cline, 
 
 | Command | Description |
 |---|---|
+| `/menu` | Interactive Control Panel: Numbered TUI with instant `[1]`..`[34]` shortcuts. |
 | `/plan <instructions>` | Planning Mode: Generates architecture/plan without altering code. |
 | `/code <instructions>` | Coding Mode: Simulates architecture and QA sub-agents before coding. |
+| `/consensus <prompt>` | Multi-Model Consensus: Parallel cross-synthesis between top 3 LLMs. |
+| `/security` | SAST Security Scanner: Audits codebase for OWASP/CWE vulnerabilities. |
+| `/run-tests` | Smart Test Runner: Executes tests with stack-trace auto-fixer. |
+| `/architecture` | Architecture Generator: Generates Mermaid.js diagrams & spec file. |
+| `/tokensaver` | Token Saver: Manages prompt compression rules & cost reduction. |
+| `/translator` | AI Translator: Transparent real-time multilingual prompt proxy. |
+| `/media` | Media Providers: Manages DALL-E, Flux, and Vision models. |
+| `/quota` | Quota Manager: Controls RPM/TPM rate limits and daily budget cap. |
+| `/consolelog` | System Logs: Displays raw PM2 and Node.js server logs. |
+| `/endpoint` | Endpoint Inspector: Displays proxy URLs and checks ping latency. |
+| `/logs` | Live Log Stream: Real-time HTTP proxy request monitor. |
 | `/test <file>` | Test Generator: Analyzes the file and creates unit tests. |
 | `/commit` | Auto-Commit: Analyzes the git diff and performs a semantic commit. |
 | `/review` | Code Audit: Reviews the git diff looking for bugs, Zod issues, and SSRF. |
-| `/read <file>` | Reader: Injects the content of a local file into the conversation. |
-| `/model` | Change Model: Interactive menu with ↑↓ arrows to swap the LLM. |
-| `/history [n]` | History: Displays the last N messages exchanged in the chat. |
+| `/model` | Change Model: Interactive menu with search and favorites. |
+| `/personas` | Persona Selector: Switches AI agent persona (God, Architect, QA...). |
+| `/playground` | Parallel Playground: Tests prompt across multiple models side-by-side. |
+| `/vacuum` | SQLite Vacuum: Optimizes and defragments database storage. |
+| `/search <query>` | Web Search: Searches the web directly inside the terminal. |
+| `/pack` | Migration Pack: Exports/Imports complete configuration package. |
 | `/status` | API Status: Checks if the proxy server is responding. |
 | `/undo` | Restore Backup: Reverts the file to the latest `.bak` backup. |
 | `/save [file]` | Save Chat: Exports the conversation to a Markdown file. |
-| `/copy` | Copy Response: Copies the entire last AI response to the clipboard. |
-| `/copy-code` | Copy Code: Copies only the last code block to the clipboard. |
-| `/paste` | Multiline Mode: Buffer to paste extensive prompts or logs. |
-| `/rollback` | Repo Rollback: Reverts git to the pre-patch/command snapshot. |
-| `/audit [n]` | Audit Log: Displays events saved in `.HiperRouter/audit.log`. |
 | `/stats` | Telemetry: Displays requests, tokens consumed, and session time. |
+| `/settings` | Settings: Configures tunnel, auth mode, language and approval mode. |
 | `/help` | Help Center: Displays the detailed list of commands. |
 | `/clear` | Clear Chat: Resets the message history and clears the screen. |
-| `/exit` | Exit: Ends the HiperRouter Agent session. |
+| `/exit` | Exit: Double `Ctrl+C` or command to end session. |
 
 ---
 
@@ -154,14 +165,14 @@ Nós mantemos a compatibilidade total de proxy para ferramentas como Claude Code
   - **Infinite Loop & Token Burn Guard**: Bloqueio inteligente contra loops infinitos de self-healing.
   - **Log de Auditoria Imutável**: Gravação de eventos de segurança em `.HiperRouter/audit.log` (`/audit`).
 - 🎨 **Experiência de Desenvolvimento (DX/UX Superior)**:
+  - **Menus TUI Numerados**: Atalhos diretos de teclado `[1]`..`[34]` com seleção instantânea (sem dar Enter) e filtro em tempo real.
+  - **Paridade Total com a Dashboard Web**: 100% dos recursos da interface web disponíveis nativamente no CLI (`/tokensaver`, `/translator`, `/media`, `/quota`, `/consolelog`, `/endpoint`).
+  - **Suporte Multilíngue (i18n)**: Idiomas selecionáveis (`pt-BR`, `en-US` ou detecção automática do sistema).
+  - **Modo de Aprovação e Edição Automática**: Controle o nível de autonomia do agente (Sempre Perguntar, Auto-Aprovar Edições de Código, Modo Autônomo Total).
+  - **Proteção contra Saída Acidental**: Exige 2x `Ctrl+C` seguidos em até 3 segundos para sair da sessão.
   - **Visual Diff Preview**: Diffs coloridos (`-` vermelho / `+` verde) antes de aprovar qualquer patch.
-  - **Tab Completion**: Pressione `Tab` após `/` para autocompletar qualquer comando.
-  - **Atalhos Produtivos**: `/copy`, `/copy-code`, `/paste` (multilinhas), `/save` (exportar chat em MD), `/stats` (telemetria de tokens).
-  - **Central de Ajuda Integrada**: Comando `/help` detalhando todos os comandos.
-- 👑 **Graphify (Knowledge Graph) Integration**: Mapeamento completo e contínuo da sua codebase (`graphify-out`) com recarregamento reativo no chat.
-- 🛠️ **Self-Healing Bash**: Executa scripts, lê erros de terminal e realiza auto-correção iterativa.
-- ⚡ **RTK - Rust Token Killer**: Substituto do `bash` puro nas operações internas, poupando até 90% do overhead de tokens.
-- 📦 **Build Seguro (Zero Downtime)**: Fluxo de compilação protegido por shell script (`build-seguro.sh`) sem derrubar o roteador em produção.
+  - **Tab Completion & Palette**: Pressione `Tab` para autocompletar ou `Ctrl+K` para abrir a Command Palette flutuante.
+  - **Super Motores de Produtividade**: Consenso Multi-Modelo (`/consensus`), Varredura de Segurança SAST (`/security`), Executor de Testes com Auto-Fixer (`/run-tests`), Arquitetura em Mermaid (`/architecture`), Stream de Logs de Requisições (`/logs`).
 
 ---
 
@@ -169,26 +180,37 @@ Nós mantemos a compatibilidade total de proxy para ferramentas como Claude Code
 
 | Comando | Descrição |
 |---|---|
+| `/menu` | Painel de Controle Interativo: TUI numerada com atalhos `[1]`..`[34]`. |
 | `/plan <instruções>` | Modo Planejamento: Gera arquitetura/plano sem alterar código. |
 | `/code <instruções>` | Modo Coding: Simula subagentes de arquitetura e QA antes de codar. |
+| `/consensus <prompt>` | Consenso Multi-Modelo: Debate e síntese paralela de 3 LLMs. |
+| `/security` | Scanner SAST: Varredura de segurança por vulnerabilidades OWASP/CWE. |
+| `/run-tests` | Smart Test Runner: Executa suíte de testes com auto-fixer de stack trace. |
+| `/architecture` | Gerador de Arquitetura: Cria diagramas Mermaid.js e arquivo de spec. |
+| `/tokensaver` | Token Saver: Gerencia regras de compressão de prompt e redução de custo. |
+| `/translator` | AI Translator: Tradutor de prompts multilíngue transparente e em tempo real. |
+| `/media` | Provedores de Mídia: Gerencia modelos DALL-E, Flux e visão computacional. |
+| `/quota` | Controle de Cotas: Define teto de requisições RPM/TPM e orçamento diário. |
+| `/consolelog` | Logs do Sistema: Exibe logs brutos do servidor Node.js / PM2. |
+| `/endpoint` | Endpoint Configurator: Exibe URLs do proxy e testa o tempo de ping. |
+| `/logs` | Live Log Stream: Monitoramento de requisições HTTP em tempo real. |
 | `/test <arquivo>` | Gerador de Testes: Analisa o arquivo e cria os testes unitários. |
 | `/commit` | Auto-Commit: Analisa o git diff e realiza um commit semântico. |
 | `/review` | Auditoria de Código: Revisa o git diff buscando bugs, Zod e SSRF. |
-| `/read <arquivo>` | Leitor: Injeta o conteúdo de um arquivo local na conversa. |
-| `/model` | Trocar Modelo: Menu interativo com setas ↑↓ para trocar LLM. |
-| `/history [n]` | Histórico: Exibe as últimas N mensagens trocadas no chat. |
+| `/model` | Trocar Modelo: Menu interativo com busca e favoritos. |
+| `/personas` | Seletor de Personas: Alterna o modo de atuação do agente (God, Architect, QA...). |
+| `/playground` | Playground Paralelo: Testa um prompt em múltiplos modelos lado a lado. |
+| `/vacuum` | Otimizar BD: Desfragmenta e compacta as páginas do SQLite. |
+| `/search <termo>` | Busca Web: Pesquisa na web direto pelo terminal sem navegador. |
+| `/pack` | Migração: Exporta ou importa o pacote completo de configurações. |
 | `/status` | Status API: Verifica se o servidor proxy está respondendo. |
 | `/undo` | Restaurar Backup: Reverte o arquivo para o backup `.bak` mais recente. |
 | `/save [arquivo]` | Salvar Chat: Exporta a conversa para um arquivo Markdown. |
-| `/copy` | Copiar Resposta: Copia toda a última resposta da IA para o clipboard. |
-| `/copy-code` | Copiar Código: Copia apenas o último bloco de código para o clipboard. |
-| `/paste` | Modo Multilinhas: Buffer para colar prompts ou logs extensos. |
-| `/rollback` | Rollback Repositório: Reverte git ao snapshot pré-patch/comando. |
-| `/audit [n]` | Log de Auditoria: Exibe os eventos salvos em `.HiperRouter/audit.log`. |
 | `/stats` | Telemetria: Exibe requisições, tokens consumidos e tempo de sessão. |
+| `/settings` | Configurações: Ajusta túnel, autenticação, idioma e modo de aprovação. |
 | `/help` | Central de Ajuda: Exibe a lista detalhada de comandos. |
 | `/clear` | Limpar Chat: Reseta o histórico de mensagens e limpa a tela. |
-| `/exit` | Sair: Encerra a sessão do HiperRouter Agent. |
+| `/exit` | Sair: Exige 2x `Ctrl+C` ou comando para encerrar a sessão. |
 
 ---
 
