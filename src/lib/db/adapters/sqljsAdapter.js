@@ -1,29 +1,31 @@
 import fs from "node:fs";
-import initSqlJs from "sql.js";
-import { PRAGMA_SQL } from "../schema.js";
+import path from "path";
+import { DATA_DIR } from "@/lib/db/helpers/dataDir.js";
 
-let SQL = null;
-
-async function loadSql() {
-  if (SQL) return SQL;
-  SQL = await initSqlJs();
-  return SQL;
+function loadSqlJs() {
+  const { initSqlJs } = await import("sql.js");
+  return initSqlJs();
 }
 
 export async function createSqlJsAdapter(filePath) {
-  const SQLLib = await loadSql();
+  const SQLLib = await loadSqlJs();
   const buf = fs.existsSync(filePath) ? fs.readFileSync(filePath) : null;
   const db = new SQLLib.Database(buf);
   db.exec(PRAGMA_SQL);
-  // Schema is created/synced by migrate.js after adapter init
 
   let dirty = false;
   let saveTimer = null;
-  const SAVE_DEBOUNCE_MS = 100;
+  const SAVE_DEBOUNCE_MS = 50; // Reduced from 100ms for faster persistence
 
   function persist() {
-    const data = db.export();
-    fs.writeFileSync(filePath, Buffer.from(data));
+    try {
+      const data = db.export();
+      // Use async write with error handling
+      fs.promises.writeFile(filePath, Buffer.from(data))
+        .catch(e => console.error("[sqljs] save failed:", e));
+    } catch (e) {
+      console.error("[sqljs] save failed:", e);
+    }
     dirty = false;
   }
 
@@ -32,9 +34,7 @@ export async function createSqlJsAdapter(filePath) {
     if (saveTimer) clearTimeout(saveTimer);
     saveTimer = setTimeout(() => {
       saveTimer = null;
-      if (dirty) {
-        try { persist(); } catch (e) { console.error("[sqljs] save failed:", e); }
-      }
+      if (dirty) persist();
     }, SAVE_DEBOUNCE_MS);
   }
 
@@ -98,18 +98,6 @@ export async function createSqlJsAdapter(filePath) {
       throw e;
     }
   }
-
-  function close() {
-    if (saveTimer) clearTimeout(saveTimer);
-    if (dirty) persist();
-    db.close();
-  }
-
-  // Flush on shutdown
-  const flush = () => { if (dirty) try { persist(); } catch {} };
-  process.on("beforeExit", flush);
-  process.on("SIGINT", flush);
-  process.on("SIGTERM", flush);
 
   return { driver: "sql.js", run, get, all, exec, transaction, close, raw: db };
 }

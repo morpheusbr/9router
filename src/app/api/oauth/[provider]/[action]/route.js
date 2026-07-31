@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
-import { 
-  getProvider, 
-  generateAuthData, 
-  exchangeTokens, 
-  requestDeviceCode, 
-  pollForToken 
+import {
+  getProvider,
+  generateAuthData,
+  exchangeTokens,
+  requestDeviceCode,
+  pollForToken
 } from "@/lib/oauth/providers";
 import { createProviderConnection } from "@/models";
 import {
@@ -18,7 +18,7 @@ import {
   registerXaiSession,
   getXaiSessionStatus,
   clearXaiSession,
-} from "@/lib/oauth/utils/server";
+} from "@/lib/oauth/utils.server";
 
 async function completeXaiManualCode(code, state) {
   const session = state ? getXaiSessionStatus(state) : null;
@@ -58,11 +58,6 @@ async function completeXaiManualCode(code, state) {
     throw err;
   }
 }
-
-/**
- * Dynamic OAuth API Route
- * Handles: authorize, exchange, device-code, poll
- */
 
 // GET /api/oauth/[provider]/authorize - Generate auth URL
 // GET /api/oauth/[provider]/device-code - Request device code (for device_code flow)
@@ -149,7 +144,7 @@ export async function GET(request, { params }) {
             ...(authMethod ? { authMethod } : {}),
           }
         : undefined;
-      
+
       // Providers that don't use PKCE for device code (Grok CLI HAR: plain device_code, no challenge)
       const noPkceDeviceProviders = [
         "github",
@@ -172,28 +167,7 @@ export async function GET(request, { params }) {
       return NextResponse.json({
         ...deviceData,
         // Prefer the verifier the provider's requestDeviceCode generated for
-        // itself (qoder rolls its own PKCE pair); fall back to the generic one.
-        codeVerifier: deviceData.codeVerifier || authData.codeVerifier,
       });
-    }
-
-    return NextResponse.json({ error: "Unknown action" }, { status: 400 });
-  } catch (error) {
-    console.log("OAuth GET error:", error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
-  }
-}
-
-// POST /api/oauth/[provider]/exchange - Exchange code for tokens and save
-// POST /api/oauth/[provider]/poll - Poll for token (device_code flow)
-export async function POST(request, { params }) {
-  try {
-    const { provider, action } = await params;
-    let body;
-    try {
-      body = await request.json();
-    } catch {
-      return NextResponse.json({ error: "Invalid or empty request body" }, { status: 400 });
     }
 
     if (action === "exchange") {
@@ -255,14 +229,14 @@ export async function POST(request, { params }) {
         provider,
         authType: "oauth",
         ...tokenData,
-        expiresAt: tokenData.expiresIn 
-          ? new Date(Date.now() + tokenData.expiresIn * 1000).toISOString() 
+        expiresAt: tokenData.expiresIn
+          ? new Date(Date.now() + tokenData.expiresIn * 1000).toISOString()
           : null,
         testStatus: "active",
       });
 
-      return NextResponse.json({ 
-        success: true, 
+      return NextResponse.json({
+        success: true,
         connection: {
           id: connection.id,
           provider: connection.provider,
@@ -311,14 +285,14 @@ export async function POST(request, { params }) {
           provider: providerId,
           authType: "oauth",
           ...result.tokens,
-          expiresAt: result.tokens.expiresIn 
-            ? new Date(Date.now() + result.tokens.expiresIn * 1000).toISOString() 
+          expiresAt: result.tokens.expiresIn
+            ? new Date(Date.now() + result.tokens.expiresIn * 1000).toISOString()
             : null,
           testStatus: "active",
         });
 
-        return NextResponse.json({ 
-          success: true, 
+        return NextResponse.json({
+          success: true,
           connection: {
             id: connection.id,
             provider: connection.provider,
@@ -328,7 +302,7 @@ export async function POST(request, { params }) {
 
       // Still pending or error - don't create connection for pending states
       const isPending = result.pending || result.error === "authorization_pending" || result.error === "slow_down";
-      
+
       return NextResponse.json({
         success: false,
         error: result.error,
@@ -348,7 +322,11 @@ export async function POST(request, { params }) {
 
     return NextResponse.json({ error: "Unknown action" }, { status: 400 });
   } catch (error) {
-    console.log("OAuth POST error:", error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    // Sanitize error message to prevent leaking sensitive tokens
+    const errorMessage = error.message.replace(/[a-zA-Z0-9]{32,}/g, "***TOKEN***");
+    return NextResponse.json({
+      error: "OAuth error",
+      message: errorMessage
+    }, { status: 500 });
   }
 }
