@@ -1,6 +1,6 @@
 # Docker
 
-Run HiperRouter in a container. Published image: [`decolua/9router`](https://hub.docker.com/r/decolua/9router) — multi-platform `linux/amd64` + `linux/arm64`.
+Run HiperRouter in a container. Published image: [`decolua/hiperrouter`](https://hub.docker.com/r/decolua/hiperrouter) — multi-platform `linux/amd64` + `linux/arm64`.
 
 ---
 
@@ -13,8 +13,8 @@ docker run -d \
   -p 20128:20128 \
   -v "$HOME/.HiperRouter:/app/data" \
   -e DATA_DIR=/app/data \
-  --name 9router \
-  decolua/9router:latest
+  --name hiperrouter \
+  decolua/hiperrouter:latest
 ```
 
 App listens on port `20128`. Open: http://localhost:20128
@@ -22,10 +22,10 @@ App listens on port `20128`. Open: http://localhost:20128
 ## Manage container
 
 ```bash
-docker logs -f 9router        # view logs
-docker stop 9router           # stop
-docker start 9router          # start again
-docker rm -f 9router          # remove
+docker logs -f hiperrouter        # view logs
+docker stop hiperrouter           # stop
+docker start hiperrouter          # start again
+docker rm -f hiperrouter          # remove
 ```
 
 ## Data persistence
@@ -35,7 +35,7 @@ docker rm -f 9router          # remove
 -e DATA_DIR=/app/data
 ```
 
-Without `DATA_DIR`, the app falls back to `~/.HiperRouter/` (macOS/Linux) or `%APPDATA%\9router\` (Windows). In the container, `DATA_DIR=/app/data` makes the bind mount work.
+Without `DATA_DIR`, the app falls back to `~/.HiperRouter/` (macOS/Linux) or `%APPDATA%\hiperrouter\` (Windows). In the container, `DATA_DIR=/app/data` makes the bind mount work.
 
 Data layout under `$DATA_DIR/`:
 
@@ -60,8 +60,8 @@ docker run -d \
   -e PORT=20128 \
   -e HOSTNAME=0.0.0.0 \
   -e DEBUG=true \
-  --name 9router \
-  decolua/9router:latest
+  --name hiperrouter \
+  decolua/hiperrouter:latest
 ```
 
 ## Optional Headroom sidecar
@@ -70,8 +70,8 @@ The HiperRouter image does not bundle Python or Headroom. To use Headroom in Doc
 
 ```yaml
 services:
-  9router:
-    image: decolua/9router:latest
+  hiperrouter:
+    image: decolua/hiperrouter:latest
     ports:
       - "20128:20128"
     volumes:
@@ -95,8 +95,8 @@ If Headroom runs on the Docker host instead of as a sidecar, use `http://host.do
 ## Update to latest
 
 ```bash
-docker pull decolua/9router:latest
-docker rm -f 9router
+docker pull decolua/hiperrouter:latest
+docker rm -f hiperrouter
 # re-run the quick start command
 ```
 
@@ -107,19 +107,19 @@ docker rm -f 9router
 ## Build image locally (test)
 
 ```bash
-cd app && docker build -t 9router .
+cd app && docker build -t hiperrouter .
 
 docker run --rm -p 20128:20128 \
   -v "$HOME/.HiperRouter:/app/data" \
   -e DATA_DIR=/app/data \
-  9router
+  hiperrouter
 ```
 
 ## Publish (automatic via CI)
 
 Push a git tag `v*` → GitHub Actions builds multi-platform (amd64+arm64) and pushes to:
-- `ghcr.io/decolua/9router:v{version}` + `:latest`
-- `decolua/9router:v{version}` + `:latest`
+- `ghcr.io/decolua/hiperrouter:v{version}` + `:latest`
+- `decolua/hiperrouter:v{version}` + `:latest`
 
 ```bash
 # Use scripts/release.js (recommended)

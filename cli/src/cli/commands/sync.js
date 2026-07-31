@@ -35,11 +35,11 @@ const configs = {
     path: path.join(os.homedir(), ".config", "opencode", "opencode.json"),
     patch: (json) => {
       if (!json.provider) json.provider = {};
-      json.provider["9router"] = {
+      json.provider["hiperrouter"] = {
         options: { baseURL: DEFAULT_URL, apiKey: DEFAULT_KEY },
         models: { "gpt-4o": {} }
       };
-      json.model = "9router/gpt-4o";
+      json.model = "hiperrouter/gpt-4o";
       return json;
     }
   },

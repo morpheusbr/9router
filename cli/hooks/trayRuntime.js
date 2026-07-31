@@ -24,7 +24,7 @@ function hasSystray() {
 // binary is broken on modern OS versions.
 function cleanupLegacySystray({ silent = false } = {}) {
   // 1) Runtime dir: ~/.HiperRouter/runtime/node_modules/systray (or %APPDATA% on Win)
-  // 2) npm global nested: <npm_prefix>/node_modules/9router/node_modules/systray
+  // 2) npm global nested: <npm_prefix>/node_modules/hiperrouter/node_modules/systray
   //    __dirname here = <pkg root>/hooks → up 1 = pkg root
   const targets = [
     path.join(getRuntimeNodeModules(), LEGACY_SYSTRAY_PKG),
@@ -63,7 +63,7 @@ function ensureRuntimeDir() {
   const pkgPath = path.join(dir, "package.json");
   if (!fs.existsSync(pkgPath)) {
     fs.writeFileSync(pkgPath, JSON.stringify({
-      name: "9router-runtime",
+      name: "hiperrouter-runtime",
       version: "1.0.0",
       private: true
     }, null, 2));

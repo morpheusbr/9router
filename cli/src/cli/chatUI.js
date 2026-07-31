@@ -592,7 +592,7 @@ código novo (o que vai entrar no lugar)
       currentCommand = '/debug';
       systemPrompt = `Você é um Especialista em Debugging Sênior. Analise e corrija o erro com base no projeto.\n\nContexto do Projeto:\n${currentProjectContext}`;
       let errorLogs = "";
-      try { errorLogs = execSync("rtk pm2 logs 9router --lines 50 --nostream --err", { encoding: "utf8" }); } catch(e) { errorLogs = "Erro ao buscar logs PM2."; }
+      try { errorLogs = execSync("rtk pm2 logs hiperrouter --lines 50 --nostream --err", { encoding: "utf8" }); } catch(e) { errorLogs = "Erro ao buscar logs PM2."; }
       finalUserMessage = `Logs de erro PM2:\n\`\`\`\n${errorLogs}\n\`\`\`\n${rawUserMessage}`;
       console.log(`${COLORS.dim}[Modo Debug - Capturando PM2 logs...]${COLORS.reset}`);
     } else if (lowerMsg === '/model') {

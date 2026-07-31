@@ -76,7 +76,7 @@ const readConfig = async () => {
 // Check if config has HiperRouter settings
 const hasHiperRouterConfig = (config) => {
   if (!config) return false;
-  return config.includes("model_provider = \"9router\"") || config.includes("[model_providers.HiperRouter]");
+  return config.includes("model_provider = \"hiperrouter\"") || config.includes("[model_providers.HiperRouter]");
 };
 
 // GET - Check codex CLI and read current settings
@@ -130,9 +130,9 @@ export async function POST(request) {
 
     // Update only HiperRouter related fields (api_key goes to auth.json, not config.toml)
     parsed.model = model;
-    parsed.model_provider = "9router";
+    parsed.model_provider = "hiperrouter";
 
-    // Update or create 9router provider section (no api_key - Codex reads from auth.json)
+    // Update or create hiperrouter provider section (no api_key - Codex reads from auth.json)
     // Ensure /v1 suffix is added only once
     const normalizedBaseUrl = baseUrl.endsWith("/v1") ? baseUrl : `${baseUrl}/v1`;
     setNestedSection(parsed, "model_providers.HiperRouter", {
@@ -195,13 +195,13 @@ export async function DELETE() {
       throw error;
     }
 
-    // Remove HiperRouter related root fields only if they point to 9router
-    if (parsed.model_provider === "9router") {
+    // Remove HiperRouter related root fields only if they point to hiperrouter
+    if (parsed.model_provider === "hiperrouter") {
       delete parsed.model;
       delete parsed.model_provider;
     }
 
-    // Remove 9router provider section
+    // Remove hiperrouter provider section
     deleteNestedSection(parsed, "model_providers.HiperRouter");
 
     // Remove subagent configuration

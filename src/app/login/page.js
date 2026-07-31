@@ -232,7 +232,7 @@ export default function LoginPage() {
                     )}
                     {resetHint && (
                       <p className="text-xs text-text-muted mt-1 leading-relaxed">
-                        Forgot password? Open <code className="bg-surface px-1.5 py-0.5 rounded border border-border/50 shadow-sm font-mono text-[10px]">9router</code> CLI on the host → <b>Settings</b> → <b>Reset Password to Default</b>.
+                        Forgot password? Open <code className="bg-surface px-1.5 py-0.5 rounded border border-border/50 shadow-sm font-mono text-[10px]">hiperrouter</code> CLI on the host → <b>Settings</b> → <b>Reset Password to Default</b>.
                       </p>
                     )}
                   </div>

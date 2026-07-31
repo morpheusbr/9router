@@ -12,7 +12,7 @@ Este documento rastreia todas as implementações, correções e melhorias de ar
 ### 1. Reestruturação do Fluxo de Desenvolvimento e Produção Unificados
 - O antigo diretório `/home/www/HiperRouter` foi excluído.
 - Migramos toda a produção e desenvolvimento para uma pasta unificada: `/home/www/HiperRouter`.
-- O processo do PM2 foi renomeado de `9router` para `HiperRouter`, rodando nativamente a partir desta pasta.
+- O processo do PM2 foi renomeado de `hiperrouter` para `HiperRouter`, rodando nativamente a partir desta pasta.
 - O banco de dados (`.HiperRouter`) foi preservado e migrado para a raiz da nova estrutura.
 - O novo script `build-seguro.sh` clona a pasta para `-build`, faz a compilação paralela completa, e ejeta os binários de volta para dentro do pacote final mantendo a regra de **Zero Downtime**.
 

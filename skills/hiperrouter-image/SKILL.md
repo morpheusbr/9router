@@ -1,11 +1,11 @@
 ---
-name: 9router-image
+name: hiperrouter-image
 description: Generate images via HiperRouter /v1/images/generations using OpenAI / Gemini Imagen / DALL-E / FLUX / MiniMax / SDWebUI / ComfyUI / Codex models. Use when the user wants to create, generate, draw, or render an image, picture, or text-to-image (txt2img).
 ---
 
 # HiperRouter — Image Generation
 
-Requires `NINEROUTER_URL` (and `NINEROUTER_KEY` if auth enabled). See https://raw.githubusercontent.com/decolua/9router/refs/heads/master/skills/9router/SKILL.md for setup.
+Requires `NINEROUTER_URL` (and `NINEROUTER_KEY` if auth enabled). See https://raw.githubusercontent.com/decolua/hiperrouter/refs/heads/master/skills/hiperrouter/SKILL.md for setup.
 
 ## Discover
 

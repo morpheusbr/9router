@@ -45,15 +45,15 @@ describe("grokBuildConfig", () => {
     const result = applyGrokBuildConfig(BASE_CONFIG, APPLY_INPUT);
     const parsed = parseGrokBuildConfig(result);
 
-    expect(parsed.default).toBe("9router");
+    expect(parsed.default).toBe("hiperrouter");
     expect(parsed.model).toMatchObject({
       model: "cx/gpt-5.6-sol",
       base_url: "http://127.0.0.1:20128/v1",
       context_window: 400000,
     });
     expect(parsed.subagentMappings).toMatchObject({
-      "general-purpose": "9router-general-purpose",
-      explore: "9router-explore",
+      "general-purpose": "hiperrouter-general-purpose",
+      explore: "hiperrouter-explore",
       plan: "grok-4.5",
     });
     expect(parsed.subagentModels["general-purpose"]).toMatchObject({
@@ -91,7 +91,7 @@ describe("grokBuildConfig", () => {
     expect(result.match(/^\[model\.HiperRouter\]$/gm)).toHaveLength(1);
     expect(result.match(/^\[model\.HiperRouter-general-purpose\]$/gm)).toHaveLength(1);
     expect(result.match(/^\[model\.HiperRouter-explore\]$/gm)).toHaveLength(1);
-    expect(result.match(/^# 9router-prev-subagent-explore/gm)).toHaveLength(1);
+    expect(result.match(/^# hiperrouter-prev-subagent-explore/gm)).toHaveLength(1);
     expect(parseGrokBuildConfig(result).model).toMatchObject({
       model: "cc/claude-opus-4.8",
       context_window: 1000000,
@@ -116,7 +116,7 @@ describe("grokBuildConfig", () => {
     expect(parsed.subagentMappings.explore).toBe("grok-build");
     expect(parsed.subagentModels.explore).toBeNull();
     expect(result).not.toContain("[model.HiperRouter-explore]");
-    expect(parsed.subagentMappings["general-purpose"]).toBe("9router-general-purpose");
+    expect(parsed.subagentMappings["general-purpose"]).toBe("hiperrouter-general-purpose");
   });
 
   it("reset restores previous default and all previous subagent mappings", () => {
@@ -132,7 +132,7 @@ describe("grokBuildConfig", () => {
       plan: "grok-4.5",
     });
     expect(reset).not.toContain("[model.HiperRouter-");
-    expect(reset).not.toContain("9router-prev-");
+    expect(reset).not.toContain("hiperrouter-prev-");
     expect(reset).toContain("[mcp_servers.example]");
   });
 
@@ -146,7 +146,7 @@ describe("grokBuildConfig", () => {
     });
     const reset = resetGrokBuildConfig(applied);
 
-    expect(parseGrokBuildConfig(applied).subagentMappings.plan).toBe("9router-plan");
+    expect(parseGrokBuildConfig(applied).subagentMappings.plan).toBe("hiperrouter-plan");
     expect(parseGrokBuildConfig(reset).subagentMappings.plan).toBeNull();
     expect(reset).not.toContain("[subagents.models]");
     expect(reset).toContain("[mcp_servers.x]");
@@ -163,14 +163,14 @@ describe("grokBuildConfig", () => {
 
     const parsed = parseGrokBuildConfig(updatedMainOnly);
     expect(parsed.model.model).toBe("gemini/gemini-3.1-pro");
-    expect(parsed.subagentMappings.explore).toBe("9router-explore");
+    expect(parsed.subagentMappings.explore).toBe("hiperrouter-explore");
     expect(parsed.subagentModels.explore.model).toBe("gemini/gemini-3-flash");
   });
 
   it("returns stable slot names only for supported subagent types", () => {
-    expect(getGrokSubagentSlot("general-purpose")).toBe("9router-general-purpose");
-    expect(getGrokSubagentSlot("explore")).toBe("9router-explore");
-    expect(getGrokSubagentSlot("plan")).toBe("9router-plan");
+    expect(getGrokSubagentSlot("general-purpose")).toBe("hiperrouter-general-purpose");
+    expect(getGrokSubagentSlot("explore")).toBe("hiperrouter-explore");
+    expect(getGrokSubagentSlot("plan")).toBe("hiperrouter-plan");
     expect(getGrokSubagentSlot("unknown")).toBeNull();
   });
 });

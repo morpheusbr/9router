@@ -11,7 +11,7 @@ function showHelp() {
     { cmd: "/commit", desc: "Auto-Commit: Analisa o git diff e realiza um commit semântico." },
     { cmd: "/review", desc: "Auditoria de Código: Revisa o git diff buscando bugs, Zod e SSRF." },
     { cmd: "/skill <instruções>", desc: "Gerador de Skill: Cria uma nova skill personalizada no projeto." },
-    { cmd: "/debug", desc: "Modo Debug: Captura os últimos erros PM2 (9router) para correção." },
+    { cmd: "/debug", desc: "Modo Debug: Captura os últimos erros PM2 (hiperrouter) para correção." },
     { cmd: "/read <arquivo>", desc: "Leitor: Injeta o conteúdo de um arquivo local na conversa." },
     { cmd: "/model", desc: "Trocar Modelo: Abre menu interativo com filtro de busca." },
     { cmd: "/fav", desc: "Favoritar Modelo: Adiciona/remove modelo atual dos favoritos." },
