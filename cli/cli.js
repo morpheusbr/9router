@@ -463,9 +463,15 @@ Commands:
         }
 
         const { startChatUI } = require("./src/cli/chatUI");
-        await startChatUI(port);
+        const chatResult = await startChatUI(port);
 
-        handleExitSignal();
+        if (chatResult === false && !trayMode) {
+          // Keep the server running instead of exiting when there are no providers
+          console.log(`\n\x1b[36mℹ Servidor continua rodando na porta ${port}.\x1b[0m`);
+          console.log(`\x1b[36m  Pressione Ctrl+C para sair.\x1b[0m\n`);
+        } else if (!trayMode) {
+          handleExitSignal();
+        }
       } catch (err) {
         console.error("Error:", err.message);
         cleanup();

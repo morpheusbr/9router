@@ -358,7 +358,10 @@ async function startChatUI(port) {
   }
 
   let model = await selectModelFromList("Select Model for Chat", "", { excludeCombos: false, port });
-  if (!model) return;
+  if (!model) {
+    // Retorna um valor específico para indicar que a seleção falhou/foi cancelada
+    return false;
+  }
 
   const keysResult = await api.getApiKeys();
   let keys = keysResult.success ? (keysResult.data.keys || []) : [];
