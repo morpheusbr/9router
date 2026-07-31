@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="./images/HiperRouter.png?1" alt="HiperRouter Dashboard" width="800"/>
+  <img src="./images/hiperrouter.png?1" alt="HiperRouter Dashboard" width="800"/>
   
   # HiperRouter
   
@@ -18,7 +18,7 @@
 
 ### 🚀 About HiperRouter
 
-**HiperRouter** started as a fork of the `9router` project but has evolved into a powerful, standalone development tool. It combines token savings (via RTK) with a super-intelligent **God Mode AI Agent** that lives directly in your terminal, acting as your Assistant Senior Software Engineer.
+**HiperRouter** started as a fork of the `hiperrouter` project but has evolved into a powerful, standalone development tool. It combines token savings (via RTK) with a super-intelligent **God Mode AI Agent** that lives directly in your terminal, acting as your Assistant Senior Software Engineer.
 
 We maintain full proxy compatibility for tools like Claude Code, Cursor, Cline, and others, while injecting local autonomy superpowers.
 
@@ -139,7 +139,7 @@ We maintain the original roots. MIT License.
 
 ### 🚀 Sobre o HiperRouter
 
-O **HiperRouter** nasceu como um fork do projeto `9router`, mas evoluiu para se tornar uma poderosa ferramenta autônoma de desenvolvimento. Ele combina a economia de tokens (via RTK) com um **God Mode AI Agent** super inteligente que vive diretamente no seu terminal, atuando como um Engenheiro de Software Sênior assistente.
+O **HiperRouter** nasceu como um fork do projeto `hiperrouter`, mas evoluiu para se tornar uma poderosa ferramenta autônoma de desenvolvimento. Ele combina a economia de tokens (via RTK) com um **God Mode AI Agent** super inteligente que vive diretamente no seu terminal, atuando como um Engenheiro de Software Sênior assistente.
 
 Nós mantemos a compatibilidade total de proxy para ferramentas como Claude Code, Cursor, Cline e outras, enquanto injetamos superpoderes de autonomia local.
 

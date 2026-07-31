@@ -11,7 +11,7 @@ const PORT_MIN = 1024;
 const PORT_MAX = 65535;
 
 const PROCESS_IDENTIFIERS = [
-  "9router",
+  "hiperrouter",
   "hiperrouter"
 ];
 

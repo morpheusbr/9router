@@ -111,7 +111,7 @@ function killProxyByPidFile() {
   } catch { }
 }
 
-// Kill all 9router processes
+// Kill all hiperrouter processes
 function killAllAppProcesses(appPort) {
   return new Promise((resolve) => {
     try {

@@ -349,7 +349,7 @@ amp --model "{{model}}"
       },
       {
         type: "info",
-        text: "Configure 9router as an OpenAI-compatible provider to route all jcode requests through 9router's optimization layer."
+        text: "Configure hiperrouter as an OpenAI-compatible provider to route all jcode requests through hiperrouter's optimization layer."
       },
       {
         type: "warning",
@@ -379,7 +379,7 @@ amp --model "{{model}}"
       },
       {
         type: "info",
-        text: "After Apply, run grok (or /model 9router) to use the routed model. Switch back anytime with /model grok-build.",
+        text: "After Apply, run grok (or /model hiperrouter) to use the routed model. Switch back anytime with /model grok-build.",
       },
       {
         type: "warning",

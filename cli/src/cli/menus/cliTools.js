@@ -361,9 +361,9 @@ async function buildOpenClawHeader() {
   }
 
   // Extract HiperRouter provider config
-  const provider = settings?.models?.providers?.["9router"];
+  const provider = settings?.models?.providers?.["hiperrouter"];
   const primary = settings?.agents?.defaults?.model?.primary || "";
-  const model = primary.startsWith("9router/") ? primary.replace("9router/", "") : (provider?.models?.[0]?.id || "");
+  const model = primary.startsWith("hiperrouter/") ? primary.replace("hiperrouter/", "") : (provider?.models?.[0]?.id || "");
   const lines = [`Status:   ${COLORS.green}✓ Configured${COLORS.reset}`];
   if (provider?.baseUrl) lines.push(`Endpoint: ${COLORS.cyan}${provider.baseUrl}${COLORS.reset}`);
   if (model)             lines.push(`Model:    ${COLORS.dim}${model}${COLORS.reset}`);
