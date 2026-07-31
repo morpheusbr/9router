@@ -1,0 +1,205 @@
+[TAILING] Tailing last 100 lines for [HiperRouter] process (change the value with --lines option)
+/root/.pm2/logs/HiperRouter-error.log last 100 lines:
+20|HiperRo | [17:13:17] ⚠️  [AUTH] openrouter | all 1 accounts locked for google/lyria-3-pro-preview (reset after 37s) | lastError=[429]: {"error":{"message":"Rate limit exceeded: f
+20|HiperRo | [17:13:17] ⚠️  [CHAT] [openrouter/google/lyria-3-pro-preview] [429]: {"error":{"message":"Rate limit exceeded: free-models-per-day. Add 10 credits to unlock 1000  (reset after 37s)
+20|HiperRo | [17:13:17] ⚠️  [COMBO] Model openrouter/google/lyria-3-pro-preview failed, trying next {"status":429}
+20|HiperRo | [17:13:17] ⚠️  [AUTH] openrouter | all 1 accounts locked for nvidia/nemotron-3-ultra-550b-a55b:free (reset after 37s) | lastError=[429]: {"error":{"message":"Rate limit exceeded: f
+20|HiperRo | [17:13:17] ⚠️  [CHAT] [openrouter/nvidia/nemotron-3-ultra-550b-a55b:free] [429]: {"error":{"message":"Rate limit exceeded: free-models-per-day. Add 10 credits to unlock 1000  (reset after 37s)
+20|HiperRo | [17:13:17] ⚠️  [COMBO] Model openrouter/nvidia/nemotron-3-ultra-550b-a55b:free failed, trying next {"status":429}
+20|HiperRo | [17:13:17] ⚠️  [AUTH] openrouter | all 1 accounts locked for poolside/laguna-xs-2.1:free (reset after 37s) | lastError=[429]: {"error":{"message":"Rate limit exceeded: f
+20|HiperRo | [17:13:17] ⚠️  [CHAT] [openrouter/poolside/laguna-xs-2.1:free] [429]: {"error":{"message":"Rate limit exceeded: free-models-per-day. Add 10 credits to unlock 1000  (reset after 37s)
+20|HiperRo | [17:13:17] ⚠️  [COMBO] Model openrouter/poolside/laguna-xs-2.1:free failed, trying next {"status":429}
+20|HiperRo | [17:13:17] ⚠️  [AUTH] openrouter | all 1 accounts locked for google/gemma-4-26b-a4b-it:free (reset after 37s) | lastError=[429]: {"error":{"message":"Rate limit exceeded: f
+20|HiperRo | [17:13:17] ⚠️  [CHAT] [openrouter/google/gemma-4-26b-a4b-it:free] [429]: {"error":{"message":"Rate limit exceeded: free-models-per-day. Add 10 credits to unlock 1000  (reset after 37s)
+20|HiperRo | [17:13:17] ⚠️  [COMBO] Model openrouter/google/gemma-4-26b-a4b-it:free failed, trying next {"status":429}
+20|HiperRo | [17:13:17] ⚠️  [AUTH] openrouter | all 1 accounts locked for nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free (reset after 37s) | lastError=[429]: {"error":{"message":"Rate limit exceeded: f
+20|HiperRo | [17:13:17] ⚠️  [CHAT] [openrouter/nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free] [429]: {"error":{"message":"Rate limit exceeded: free-models-per-day. Add 10 credits to unlock 1000  (reset after 37s)
+20|HiperRo | [17:13:17] ⚠️  [COMBO] Model openrouter/nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free failed, trying next {"status":429}
+20|HiperRo | [17:13:17] ⚠️  [AUTH] openrouter | all 1 accounts locked for google/gemma-4-31b-it:free (reset after 37s) | lastError=[429]: {"error":{"message":"Rate limit exceeded: f
+20|HiperRo | [17:13:17] ⚠️  [CHAT] [openrouter/google/gemma-4-31b-it:free] [429]: {"error":{"message":"Rate limit exceeded: free-models-per-day. Add 10 credits to unlock 1000  (reset after 37s)
+20|HiperRo | [17:13:17] ⚠️  [COMBO] Model openrouter/google/gemma-4-31b-it:free failed, trying next {"status":429}
+20|HiperRo | [17:13:17] ⚠️  [COMBO] All models failed | [openrouter/google/gemma-4-31b-it:free] [429]: {"error":{"message":"Rate limit exceeded: free-models-per-day. Add 10 credits to unlock 1000  (reset after 37s)
+20|HiperRo | [17:13:51] ⚠️  [CHAT] Invalid model format {"model":"meu-combo"}
+20|HiperRo | [17:17:04] ⚠️  [HEADROOM] skipped: unsupported gemini-cli request shape
+20|HiperRo | [17:52:37] ⚠️  [CHAT] Invalid model format {"model":"meu-combo"}
+20|HiperRo | [17:52:50] ⚠️  [CHAT] Invalid model format {"model":"meu-combo"}
+20|HiperRo | [17:53:17] ⚠️  [HEADROOM] skipped: unsupported antigravity request shape
+20|HiperRo | [17:53:17] ⚠️  [HEADROOM] skipped: unsupported antigravity request shape
+20|HiperRo | [ProjectId] onboardUser attempt 1 failed: onboardUser done but no project_id in response, retrying...
+20|HiperRo | [ProjectId] onboardUser attempt 2 failed: onboardUser done but no project_id in response, retrying...
+20|HiperRo | [ProjectId] onboardUser attempt 3 failed: onboardUser done but no project_id in response, retrying...
+20|HiperRo | [17:53:23] ⚠️  [HEADROOM] skipped: unsupported antigravity request shape
+20|HiperRo | [ProjectId] onboardUser attempt 4 failed: onboardUser done but no project_id in response, retrying...
+20|HiperRo | [ProjectId] onboardUser failed after 5 attempts: onboardUser done but no project_id in response
+20|HiperRo | [ProjectId] could not fetch projectId for connection 9d388462
+20|HiperRo | [17:53:54] ⚠️  [HEADROOM] skipped: unsupported antigravity request shape
+20|HiperRo | [17:54:09] ⚠️  [HEADROOM] skipped: unsupported antigravity request shape
+20|HiperRo | [17:54:48] ⚠️  [HEADROOM] skipped: unsupported antigravity request shape
+20|HiperRo | [17:54:55] ⚠️  [HEADROOM] skipped: unsupported antigravity request shape
+20|HiperRo | [18:01:48] ⚠️  [HEADROOM] skipped: unsupported antigravity request shape
+20|HiperRo | [18:02:03] ⚠️  [HEADROOM] skipped: unsupported antigravity request shape
+20|HiperRo | [18:02:07] ⚠️  [HEADROOM] skipped: unsupported antigravity request shape
+20|HiperRo | [18:02:11] ⚠️  [HEADROOM] skipped: unsupported antigravity request shape
+20|HiperRo | [18:03:48] ⚠️  [HEADROOM] skipped: unsupported antigravity request shape
+20|HiperRo | [18:04:10] ⚠️  [HEADROOM] skipped: unsupported antigravity request shape
+20|HiperRo | [18:04:27] ⚠️  [HEADROOM] skipped: unsupported antigravity request shape
+20|HiperRo | [18:04:33] ⚠️  [HEADROOM] skipped: unsupported antigravity request shape
+20|HiperRo | [18:04:36] ⚠️  [HEADROOM] skipped: unsupported antigravity request shape
+20|HiperRo | [18:04:41] ⚠️  [HEADROOM] skipped: unsupported antigravity request shape
+20|HiperRo | [18:04:51] ⚠️  [HEADROOM] skipped: unsupported antigravity request shape
+20|HiperRo | [18:04:55] ⚠️  [HEADROOM] skipped: unsupported antigravity request shape
+20|HiperRo | [18:04:59] ⚠️  [HEADROOM] skipped: unsupported antigravity request shape
+20|HiperRo | [18:05:03] ⚠️  [HEADROOM] skipped: unsupported antigravity request shape
+20|HiperRo | [18:05:07] ⚠️  [HEADROOM] skipped: unsupported antigravity request shape
+20|HiperRo | [18:05:10] ⚠️  [HEADROOM] skipped: unsupported antigravity request shape
+20|HiperRo | [18:05:25] ⚠️  [HEADROOM] skipped: unsupported antigravity request shape
+20|HiperRo | [18:05:29] ⚠️  [HEADROOM] skipped: unsupported antigravity request shape
+20|HiperRo | [18:05:33] ⚠️  [HEADROOM] skipped: unsupported antigravity request shape
+20|HiperRo | [18:05:38] ⚠️  [HEADROOM] skipped: unsupported antigravity request shape
+20|HiperRo | [18:05:43] ⚠️  [HEADROOM] skipped: unsupported antigravity request shape
+20|HiperRo | [18:05:47] ⚠️  [HEADROOM] skipped: unsupported antigravity request shape
+20|HiperRo | [18:06:44] ⚠️  [HEADROOM] skipped: unsupported antigravity request shape
+20|HiperRo | [18:06:48] ⚠️  [HEADROOM] skipped: unsupported antigravity request shape
+20|HiperRo | [18:07:59] ⚠️  [HEADROOM] skipped: unsupported antigravity request shape
+20|HiperRo | [18:09:18] ⚠️  [HEADROOM] skipped: unsupported antigravity request shape
+20|HiperRo | [18:09:53] ⚠️  [HEADROOM] skipped: unsupported antigravity request shape
+20|HiperRo | [18:12:18] ⚠️  [HEADROOM] skipped: unsupported antigravity request shape
+20|HiperRo | [18:12:35] ⚠️  [HEADROOM] skipped: unsupported antigravity request shape
+20|HiperRo | [18:12:39] ⚠️  [HEADROOM] skipped: unsupported antigravity request shape
+20|HiperRo | [18:14:22] ⚠️  [HEADROOM] skipped: unsupported antigravity request shape
+20|HiperRo | [18:14:36] ⚠️  [HEADROOM] skipped: unsupported antigravity request shape
+20|HiperRo | [18:14:42] ⚠️  [HEADROOM] skipped: unsupported antigravity request shape
+20|HiperRo | [18:14:47] ⚠️  [HEADROOM] skipped: unsupported antigravity request shape
+20|HiperRo | [18:15:00] ⚠️  [HEADROOM] skipped: unsupported antigravity request shape
+20|HiperRo | [18:15:10] ⚠️  [HEADROOM] skipped: unsupported antigravity request shape
+20|HiperRo | [18:15:15] ⚠️  [HEADROOM] skipped: unsupported antigravity request shape
+20|HiperRo | [18:15:24] ⚠️  [HEADROOM] skipped: unsupported antigravity request shape
+20|HiperRo | [18:15:32] ⚠️  [HEADROOM] skipped: unsupported antigravity request shape
+20|HiperRo | [18:17:38] ⚠️  [HEADROOM] skipped: unsupported antigravity request shape
+20|HiperRo | [18:17:45] ⚠️  [HEADROOM] skipped: unsupported antigravity request shape
+20|HiperRo | [18:34:56] ⚠️  [HEADROOM] skipped: unsupported antigravity request shape
+20|HiperRo | [18:35:05] ⚠️  [HEADROOM] skipped: unsupported antigravity request shape
+20|HiperRo | [18:35:09] ⚠️  [HEADROOM] skipped: unsupported antigravity request shape
+20|HiperRo | [18:35:13] ⚠️  [HEADROOM] skipped: unsupported antigravity request shape
+20|HiperRo | [18:35:18] ⚠️  [HEADROOM] skipped: unsupported antigravity request shape
+20|HiperRo | [18:35:23] ⚠️  [HEADROOM] skipped: unsupported antigravity request shape
+20|HiperRo | [18:35:28] ⚠️  [HEADROOM] skipped: unsupported antigravity request shape
+20|HiperRo | [18:35:34] ⚠️  [HEADROOM] skipped: unsupported antigravity request shape
+20|HiperRo | [18:36:37] ⚠️  [HEADROOM] skipped: unsupported antigravity request shape
+20|HiperRo | [18:36:43] ⚠️  [HEADROOM] skipped: unsupported antigravity request shape
+20|HiperRo | [18:36:48] ⚠️  [HEADROOM] skipped: unsupported antigravity request shape
+20|HiperRo | [19:04:33] ⚠️  [HEADROOM] skipped: unsupported antigravity request shape
+20|HiperRo | [ProjectId] onboardUser attempt 1 failed: onboardUser done but no project_id in response, retrying...
+20|HiperRo | [ProjectId] onboardUser attempt 2 failed: onboardUser done but no project_id in response, retrying...
+20|HiperRo | [ProjectId] onboardUser attempt 3 failed: onboardUser done but no project_id in response, retrying...
+20|HiperRo | [ProjectId] onboardUser attempt 4 failed: onboardUser done but no project_id in response, retrying...
+20|HiperRo | [ProjectId] onboardUser failed after 5 attempts: onboardUser done but no project_id in response
+20|HiperRo | [ProjectId] could not fetch projectId for connection 9d388462
+20|HiperRo | [19:04:43] ⚠️  [HEADROOM] skipped: unsupported antigravity request shape
+20|HiperRo | Erro ao ler DB do RTK: Error: /lib64/libm.so.6: version `GLIBC_2.29' not found (required by /home/www/HiperRouter/node_modules/better-sqlite3/prebuilds/linux-x64.node)
+20|HiperRo |     at ignore-listed frames {
+20|HiperRo |   code: 'ERR_DLOPEN_FAILED'
+20|HiperRo | }
+
+/root/.pm2/logs/HiperRouter-out.log last 100 lines:
+20|HiperRo | [18:06:48] 🟡 ▶ POST ag/gemini-pro-agent → antigravity/gemini-pro-agent · FMT: openai→antigravity · STREAM · 60 MSG · 11 TOOL · ACC:fabio.dj.rs@gmail.com
+20|HiperRo | [18:06:48] 🟡 ⚙ CAVEMAN:full · PONYTAIL:full
+20|HiperRo | [18:06:51] 🟡 📊 DONE 3600ms · TTFT 3582ms · IN 105352 (CACHE ↻102077) · OUT 43
+20|HiperRo | [18:07:59] 🟡 ▶ POST ag/gemini-pro-agent → antigravity/gemini-pro-agent · FMT: openai→antigravity · STREAM · 62 MSG · 11 TOOL · ACC:fabio.dj.rs@gmail.com
+20|HiperRo | [18:07:59] 🟡 ⚙ CAVEMAN:full · PONYTAIL:full
+20|HiperRo | [18:08:04] 🟡 📊 DONE 4978ms · TTFT 4599ms · IN 131631 · OUT 41
+20|HiperRo | [18:09:18] 🟡 ▶ POST ag/gemini-pro-agent → antigravity/gemini-pro-agent · FMT: openai→antigravity · STREAM · 64 MSG · 11 TOOL · ACC:fabio.dj.rs@gmail.com
+20|HiperRo | [18:09:18] 🟡 ⚙ CAVEMAN:full · PONYTAIL:full
+20|HiperRo | [18:09:53] 🟡 📊 DONE 35288ms · TTFT 35268ms · IN 131718 (CACHE ↻130727) · OUT 3916
+20|HiperRo | [18:09:53] 🟡 ▶ POST ag/gemini-pro-agent → antigravity/gemini-pro-agent · FMT: openai→antigravity · STREAM · 66 MSG · 11 TOOL · ACC:fabio.dj.rs@gmail.com
+20|HiperRo | [18:09:53] 🟡 ⚙ CAVEMAN:full · PONYTAIL:full
+20|HiperRo | [18:09:58] 🟡 📊 DONE 4229ms · TTFT 3486ms · IN 133402 (CACHE ↻130726) · OUT 118
+20|HiperRo | [18:12:18] 🟡 ▶ POST ag/gemini-pro-agent → antigravity/gemini-pro-agent · FMT: openai→antigravity · STREAM · 68 MSG · 11 TOOL · ACC:fabio.dj.rs@gmail.com
+20|HiperRo | [18:12:18] 🟡 ⚙ CAVEMAN:full · PONYTAIL:full
+20|HiperRo | [18:12:35] 🟡 📊 DONE 16602ms · TTFT 16577ms · IN 135588 (CACHE ↻130723) · OUT 2176
+20|HiperRo | [18:12:35] 🟡 ▶ POST ag/gemini-pro-agent → antigravity/gemini-pro-agent · FMT: openai→antigravity · STREAM · 70 MSG · 11 TOOL · ACC:fabio.dj.rs@gmail.com
+20|HiperRo | [18:12:35] 🟡 ⚙ CAVEMAN:full · PONYTAIL:full
+20|HiperRo | [18:12:39] 🟡 📊 DONE 4278ms · TTFT 4255ms · IN 137782 (CACHE ↻130723) · OUT 40
+20|HiperRo | [18:12:39] 🟡 ▶ POST ag/gemini-pro-agent → antigravity/gemini-pro-agent · FMT: openai→antigravity · STREAM · 72 MSG · 11 TOOL · ACC:fabio.dj.rs@gmail.com
+20|HiperRo | [18:12:39] 🟡 ⚙ CAVEMAN:full · PONYTAIL:full
+20|HiperRo | [18:12:46] 🟡 📊 DONE 6200ms · TTFT 4102ms · IN 138633 (CACHE ↻130720) · OUT 248
+20|HiperRo | [18:14:22] 🟡 ▶ POST ag/gemini-pro-agent → antigravity/gemini-pro-agent · FMT: openai→antigravity · STREAM · 74 MSG · 11 TOOL · ACC:fabio.dj.rs@gmail.com
+20|HiperRo | [18:14:22] 🟡 ⚙ CAVEMAN:full · PONYTAIL:full
+20|HiperRo | [18:14:36] 🟡 📊 DONE 14105ms · TTFT 14093ms · IN 138910 (CACHE ↻130713) · OUT 1737
+20|HiperRo | [18:14:36] 🟡 ▶ POST ag/gemini-pro-agent → antigravity/gemini-pro-agent · FMT: openai→antigravity · STREAM · 76 MSG · 11 TOOL · ACC:fabio.dj.rs@gmail.com
+20|HiperRo | [18:14:36] 🟡 ⚙ CAVEMAN:full · PONYTAIL:full
+20|HiperRo | [18:14:41] 🟡 📊 DONE 5439ms · TTFT 5419ms · IN 140665 (CACHE ↻138881) · OUT 44
+20|HiperRo | [18:14:42] 🟡 ▶ POST ag/gemini-pro-agent → antigravity/gemini-pro-agent · FMT: openai→antigravity · STREAM · 78 MSG · 11 TOOL · ACC:fabio.dj.rs@gmail.com
+20|HiperRo | [18:14:42] 🟡 ⚙ CAVEMAN:full · PONYTAIL:full
+20|HiperRo | [18:14:47] 🟡 📊 DONE 5228ms · TTFT 5200ms · IN 140758 (CACHE ↻138876) · OUT 202
+20|HiperRo | [18:14:47] 🟡 ▶ POST ag/gemini-pro-agent → antigravity/gemini-pro-agent · FMT: openai→antigravity · STREAM · 80 MSG · 11 TOOL · ACC:fabio.dj.rs@gmail.com
+20|HiperRo | [18:14:47] 🟡 ⚙ CAVEMAN:full · PONYTAIL:full
+20|HiperRo | [18:14:54] 🟡 📊 DONE 7362ms · TTFT 7343ms · IN 141226 (CACHE ↻138871) · OUT 585
+20|HiperRo | [18:15:00] 🟡 ▶ POST ag/gemini-pro-agent → antigravity/gemini-pro-agent · FMT: openai→antigravity · STREAM · 82 MSG · 11 TOOL · ACC:fabio.dj.rs@gmail.com
+20|HiperRo | [18:15:00] 🟡 ⚙ CAVEMAN:full · PONYTAIL:full
+20|HiperRo | [18:15:10] 🟡 📊 DONE 9750ms · TTFT 9736ms · IN 142795 (CACHE ↻138870) · OUT 1068
+20|HiperRo | [18:15:10] 🟡 ▶ POST ag/gemini-pro-agent → antigravity/gemini-pro-agent · FMT: openai→antigravity · STREAM · 84 MSG · 11 TOOL · ACC:fabio.dj.rs@gmail.com
+20|HiperRo | [18:15:10] 🟡 ⚙ CAVEMAN:full · PONYTAIL:full
+20|HiperRo | [18:15:15] 🟡 📊 DONE 4819ms · TTFT 4801ms · IN 144338 (CACHE ↻138868) · OUT 114
+20|HiperRo | [18:15:15] 🟡 ▶ POST ag/gemini-pro-agent → antigravity/gemini-pro-agent · FMT: openai→antigravity · STREAM · 86 MSG · 11 TOOL · ACC:fabio.dj.rs@gmail.com
+20|HiperRo | [18:15:15] 🟡 ⚙ CAVEMAN:full · PONYTAIL:full
+20|HiperRo | [18:15:23] 🟡 📊 DONE 8009ms · TTFT 7980ms · IN 144469 (CACHE ↻138863) · OUT 44
+20|HiperRo | [18:15:24] 🟡 ▶ POST ag/gemini-pro-agent → antigravity/gemini-pro-agent · FMT: openai→antigravity · STREAM · 88 MSG · 11 TOOL · ACC:fabio.dj.rs@gmail.com
+20|HiperRo | [18:15:24] 🟡 ⚙ CAVEMAN:full · PONYTAIL:full
+20|HiperRo | [18:15:32] 🟡 📊 DONE 7414ms · TTFT 7393ms · IN 145416 (CACHE ↻138860) · OUT 108
+20|HiperRo | [18:15:32] 🟡 ▶ POST ag/gemini-pro-agent → antigravity/gemini-pro-agent · FMT: openai→antigravity · STREAM · 90 MSG · 11 TOOL · ACC:fabio.dj.rs@gmail.com
+20|HiperRo | [18:15:32] 🟡 ⚙ CAVEMAN:full · PONYTAIL:full
+20|HiperRo | [18:15:38] 🟡 📊 DONE 5610ms · TTFT 5588ms · IN 145541 (CACHE ↻138854) · OUT 44
+20|HiperRo | [18:17:38] 🟡 ▶ POST ag/gemini-pro-agent → antigravity/gemini-pro-agent · FMT: openai→antigravity · STREAM · 92 MSG · 11 TOOL · ACC:fabio.dj.rs@gmail.com
+20|HiperRo | [18:17:38] 🟡 ⚙ CAVEMAN:full · PONYTAIL:full
+20|HiperRo | [18:17:45] 🟡 📊 DONE 6953ms · TTFT 6933ms · IN 145957 (CACHE ↻138850) · OUT 70
+20|HiperRo | [18:17:45] 🟡 ▶ POST ag/gemini-pro-agent → antigravity/gemini-pro-agent · FMT: openai→antigravity · STREAM · 94 MSG · 11 TOOL · ACC:fabio.dj.rs@gmail.com
+20|HiperRo | [18:17:45] 🟡 ⚙ CAVEMAN:full · PONYTAIL:full
+20|HiperRo | [18:17:50] 🟡 📊 DONE 5376ms · TTFT 4422ms · IN 146044 (CACHE ↻138844) · OUT 120
+20|HiperRo | [18:34:56] 🟡 ▶ POST ag/gemini-pro-agent → antigravity/gemini-pro-agent · FMT: openai→antigravity · STREAM · 96 MSG · 11 TOOL · ACC:fabio.dj.rs@gmail.com
+20|HiperRo | [18:34:56] 🟡 ⚙ CAVEMAN:full · PONYTAIL:full
+20|HiperRo | [18:35:04] 🟡 📊 DONE 8450ms · TTFT 8421ms · IN 146195 (CACHE ↻138837) · OUT 319
+20|HiperRo | [18:35:05] 🟡 ▶ POST ag/gemini-pro-agent → antigravity/gemini-pro-agent · FMT: openai→antigravity · STREAM · 98 MSG · 11 TOOL · ACC:fabio.dj.rs@gmail.com
+20|HiperRo | [18:35:05] 🟡 ⚙ CAVEMAN:full · PONYTAIL:full
+20|HiperRo | [18:35:08] 🟡 📊 DONE 3912ms · TTFT 3895ms · IN 146279 (CACHE ↻138832) · OUT 46
+20|HiperRo | [18:35:09] 🟡 ▶ POST ag/gemini-pro-agent → antigravity/gemini-pro-agent · FMT: openai→antigravity · STREAM · 100 MSG · 11 TOOL · ACC:fabio.dj.rs@gmail.com
+20|HiperRo | [18:35:09] 🟡 ⚙ CAVEMAN:full · PONYTAIL:full
+20|HiperRo | [18:35:13] 🟡 📊 DONE 4265ms · TTFT 4243ms · IN 146345 (CACHE ↻138826) · OUT 48
+20|HiperRo | [18:35:13] 🟡 ▶ POST ag/gemini-pro-agent → antigravity/gemini-pro-agent · FMT: openai→antigravity · STREAM · 102 MSG · 11 TOOL · ACC:fabio.dj.rs@gmail.com
+20|HiperRo | [18:35:13] 🟡 ⚙ CAVEMAN:full · PONYTAIL:full
+20|HiperRo | [18:35:18] 🟡 📊 DONE 5233ms · TTFT 5208ms · IN 146413 (CACHE ↻138821) · OUT 44
+20|HiperRo | [18:35:18] 🟡 ▶ POST ag/gemini-pro-agent → antigravity/gemini-pro-agent · FMT: openai→antigravity · STREAM · 104 MSG · 11 TOOL · ACC:fabio.dj.rs@gmail.com
+20|HiperRo | [18:35:18] 🟡 ⚙ CAVEMAN:full · PONYTAIL:full
+20|HiperRo | [18:35:23] 🟡 📊 DONE 4734ms · TTFT 4698ms · IN 146514 (CACHE ↻138815) · OUT 41
+20|HiperRo | [18:35:23] 🟡 ▶ POST ag/gemini-pro-agent → antigravity/gemini-pro-agent · FMT: openai→antigravity · STREAM · 106 MSG · 11 TOOL · ACC:fabio.dj.rs@gmail.com
+20|HiperRo | [18:35:23] 🟡 ⚙ CAVEMAN:full · PONYTAIL:full
+20|HiperRo | [18:35:27] 🟡 📊 DONE 4146ms · TTFT 4120ms · IN 146575 (CACHE ↻138810) · OUT 67
+20|HiperRo | [18:35:28] 🟡 ▶ POST ag/gemini-pro-agent → antigravity/gemini-pro-agent · FMT: openai→antigravity · STREAM · 108 MSG · 11 TOOL · ACC:fabio.dj.rs@gmail.com
+20|HiperRo | [18:35:28] 🟡 ⚙ CAVEMAN:full · PONYTAIL:full
+20|HiperRo | [18:35:34] 🟡 📊 DONE 6075ms · TTFT 6054ms · IN 146659 (CACHE ↻138804) · OUT 41
+20|HiperRo | [18:35:34] 🟡 ▶ POST ag/gemini-pro-agent → antigravity/gemini-pro-agent · FMT: openai→antigravity · STREAM · 110 MSG · 11 TOOL · ACC:fabio.dj.rs@gmail.com
+20|HiperRo | [18:35:34] 🟡 ⚙ CAVEMAN:full · PONYTAIL:full
+20|HiperRo | [18:35:40] 🟡 📊 DONE 6645ms · TTFT 5457ms · IN 146771 (CACHE ↻138799) · OUT 122
+20|HiperRo | [18:36:37] 🟡 ▶ POST ag/gemini-pro-agent → antigravity/gemini-pro-agent · FMT: openai→antigravity · STREAM · 112 MSG · 11 TOOL · ACC:fabio.dj.rs@gmail.com
+20|HiperRo | [18:36:37] 🟡 ⚙ CAVEMAN:full · PONYTAIL:full
+20|HiperRo | [18:36:43] 🟡 📊 DONE 5752ms · TTFT 5734ms · IN 146928 (CACHE ↻138792) · OUT 248
+20|HiperRo | [18:36:43] 🟡 ▶ POST ag/gemini-pro-agent → antigravity/gemini-pro-agent · FMT: openai→antigravity · STREAM · 114 MSG · 11 TOOL · ACC:fabio.dj.rs@gmail.com
+20|HiperRo | [18:36:43] 🟡 ⚙ CAVEMAN:full · PONYTAIL:full
+20|HiperRo | [18:36:48] 🟡 📊 DONE 5255ms · TTFT 5234ms · IN 146988 (CACHE ↻138787) · OUT 49
+20|HiperRo | [18:36:48] 🟡 ▶ POST ag/gemini-pro-agent → antigravity/gemini-pro-agent · FMT: openai→antigravity · STREAM · 116 MSG · 11 TOOL · ACC:fabio.dj.rs@gmail.com
+20|HiperRo | [18:36:48] 🟡 ⚙ CAVEMAN:full · PONYTAIL:full
+20|HiperRo | [18:36:55] 🟡 📊 DONE 6142ms · TTFT 5303ms · IN 147054 (CACHE ↻146945) · OUT 109
+20|HiperRo | [19:04:32] ℹ️  [TOKEN_REFRESH] Refreshing provider credentials proactively {"provider":"antigravity","expiresIn":-677,"refreshLeadMs":300000,"lastRefreshAt":"2026-07-30T20:53:17.235Z"}
+20|HiperRo | [19:04:33] ℹ️  [TOKEN_REFRESH] Successfully refreshed Google token {"hasNewAccessToken":true,"expiresIn":3599}
+20|HiperRo | [19:04:33] ℹ️  [TOKEN_REFRESH] Credentials updated in localDb {"connectionId":"9d388462-8b36-448c-abdf-363d7cf5993d","success":true}
+20|HiperRo | [19:04:33] 🟡 ▶ POST ag/gemini-pro-agent → antigravity/gemini-pro-agent · FMT: openai→antigravity · STREAM · 118 MSG · 11 TOOL · ACC:fabio.dj.rs@gmail.com
+20|HiperRo | [19:04:33] 🟡 ⚙ CAVEMAN:full · PONYTAIL:full
+20|HiperRo | [ProjectId] Onboarding user with tier: standard-tier
+20|HiperRo | [19:04:43] 🟡 📊 DONE 9816ms · TTFT 9788ms · IN 147189 · OUT 428
+20|HiperRo | [19:04:43] 🟡 ▶ POST ag/gemini-pro-agent → antigravity/gemini-pro-agent · FMT: openai→antigravity · STREAM · 120 MSG · 11 TOOL · ACC:fabio.dj.rs@gmail.com
+20|HiperRo | [19:04:43] 🟡 ⚙ CAVEMAN:full · PONYTAIL:full
+20|HiperRo | [19:04:48] 🟡 📊 DONE 4755ms · TTFT 4255ms · IN 147272 (CACHE ↻146932) · OUT 65
+20|HiperRo | TOKEN Antigravity refreshed
+20|HiperRo | TOKEN Gemini CLI refreshed
+20|HiperRo | TOKEN Copilot token refreshed
+
