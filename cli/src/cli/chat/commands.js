@@ -29,6 +29,26 @@ function showHelp() {
     { cmd: "/rollback", desc: "Rollback Repositório: Reverte git ao snapshot pré-patch/comando." },
     { cmd: "/audit [n]", desc: "Log de Auditoria: Exibe os eventos salvos em .HiperRouter/audit.log." },
     { cmd: "/stats", desc: "Telemetria: Exibe requisições, tokens consumidos e tempo de sessão." },
+    { cmd: "/providers", desc: "Provedores: Gerencia conexões e nós de provedores no terminal." },
+    { cmd: "/combos", desc: "Combos: Cria e edita grupos de fallback/load-balancer de modelos." },
+    { cmd: "/alias", desc: "Aliases: Gerencia mapeamento e redirecionamento de nomes de modelos." },
+    { cmd: "/personas", desc: "Personas: Alterna o modo de atuação e regras do agente (God, QA...)." },
+    { cmd: "/playground", desc: "Playground: Testa um prompt em múltiplos modelos simultaneamente." },
+    { cmd: "/vacuum", desc: "Otimizar BD: Executa a limpeza e desfragmentação do banco SQLite." },
+    { cmd: "/logs", desc: "Live Logs: Exibe stream de tráfego de requisições HTTP em tempo real." },
+    { cmd: "/keyhealth", desc: "Saúde das Chaves: Monitora cota e failover das chaves ativas." },
+    { cmd: "/search <termo>", desc: "Busca Web: Realiza pesquisas na web direto pelo terminal." },
+    { cmd: "/pack", desc: "Migração: Exporta ou importa o pacote de configurações entre máquinas." },
+    { cmd: "/settings", desc: "Configurações: Ajustes de túnel HTTPS, auth mode e senha." },
+    { cmd: "/security", desc: "Scanner de Segurança: Executa varredura estática de vulnerabilidades SAST." },
+    { cmd: "/run-tests", desc: "Test Runner: Executa testes automáticos com captura de stack trace." },
+    { cmd: "/changelog", desc: "Release Notes: Gera changelog formatado a partir dos commits." },
+    { cmd: "/tokensaver", desc: "Token Saver: Configura o nível de compressão e regras de economia." },
+    { cmd: "/translator", desc: "AI Translator: Tradutor automático e transparente de prompts." },
+    { cmd: "/media", desc: "Mídia & Visão: Provedores de geração de imagens (DALL-E, Flux...)." },
+    { cmd: "/quota", desc: "Cotas & Limites: Define orçamento diário e teto de requisições RPM/TPM." },
+    { cmd: "/consolelog", desc: "Logs do Sistema: Exibe os logs brutos do processo Node.js / PM2." },
+    { cmd: "/endpoint", desc: "Endpoint & Ping: Exibe as URLs de conexão para editores e testa o ping." },
     { cmd: "/help", desc: "Central de Ajuda: Exibe esta lista detalhada de comandos." },
     { cmd: "/clear", desc: "Limpar Chat: Reseta o histórico de mensagens e limpa a tela." },
     { cmd: "/exit", desc: "Sair: Encerra a sessão do HiperRouter Agent." }
@@ -270,6 +290,41 @@ async function handleSlashCommand(lowerMsg, rawUserMessage, state) {
     }
     console.log(`${COLORS.dim}Abrindo painel web em ${serverUrl}...${COLORS.reset}\n`);
     openBrowser(serverUrl);
+    return true;
+  }
+
+  if (lowerMsg === '/menu' || lowerMsg === 'menu') {
+    const { run } = require("../commands/menu");
+    await run([]);
+    clearScreen();
+    return true;
+  }
+
+  if (lowerMsg === '/doctor' || lowerMsg === 'doctor') {
+    const { run } = require("../commands/doctor");
+    await run([]);
+    const { pause } = require("../utils/input");
+    await pause();
+    return true;
+  }
+
+  if (lowerMsg === '/key' || lowerMsg === 'key' || lowerMsg === 'chaves') {
+    const { run } = require("../commands/key");
+    await run([]);
+    return true;
+  }
+
+  if (lowerMsg === '/backup' || lowerMsg === 'backup') {
+    const { run } = require("../commands/backup");
+    await run([]);
+    return true;
+  }
+
+  if (lowerMsg === '/stats' || lowerMsg === 'stats') {
+    const { run } = require("../commands/stats");
+    await run([]);
+    const { pause } = require("../utils/input");
+    await pause();
     return true;
   }
 

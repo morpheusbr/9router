@@ -83,8 +83,33 @@ async function showSettingsMenu(breadcrumb = []) {
         action: async (d) => { await toggleHeadroom(d?.settings?.headroomEnabled === true); return true; }
       },
       {
-        label: "🔑 Reset Password to Default",
+        label: "🔑 Reset Password to Default (123456)",
         action: async () => { await resetPassword(); return true; }
+      },
+      {
+        label: "✏️  Change Dashboard Password",
+        action: async () => { await changeCustomPassword(); return true; }
+      },
+      {
+        label: "💾 Export Database Backup (.sqlite)",
+        action: async () => { await exportDatabaseBackup(); return true; }
+      },
+      {
+        label: () => {
+          const mode = require("../utils/configStore").get("autoApproveMode", "ask");
+          const labels = { ask: "❓ Sempre Perguntar (y/n)", patches: "⚡ Auto-Aprovar Edições de Código", all: "🚀 Auto-Aprovar Tudo (Edições + Comandos)" };
+          return `🛡️ Aprovação de Edições: ${labels[mode] || labels.ask} → Change`;
+        },
+        action: async () => { await changeAutoApproveSetting(); return true; }
+      },
+      {
+        label: () => {
+          const locale = require("../utils/locale");
+          const current = locale.getActiveLanguage();
+          const mode = require("../utils/configStore").get("language", "auto");
+          return `🌐 Language / Idioma: ${current} (Mode: ${mode.toUpperCase()}) → Change`;
+        },
+        action: async () => { await changeLanguageSetting(); return true; }
       },
       {
         label: (d) => {
@@ -95,6 +120,44 @@ async function showSettingsMenu(breadcrumb = []) {
       }
     ]
   });
+}
+
+async function changeAutoApproveSetting() {
+  const { selectMenu, pause } = require("../utils/input");
+  const configStore = require("../utils/configStore");
+
+  const items = [
+    { label: "❓ Sempre Perguntar antes de cada edição ou comando (Padrão de Segurança)", mode: "ask" },
+    { label: "⚡ Auto-Aprovar Edições de Arquivos e Patches (Pergunta apenas comandos bash)", mode: "patches" },
+    { label: "🚀 Auto-Aprovar TUDO sem interrupção (Modo Autônomo Total)", mode: "all" }
+  ];
+
+  const idx = await selectMenu("Modo de Aprovação de Edições no Chat", items, 0, "Escolha o nível de autonomia do agente:");
+  if (idx !== -1) {
+    const selected = items[idx];
+    configStore.set("autoApproveMode", selected.mode);
+    showStatus(`Modo de aprovação alterado para: ${selected.label}`, "success");
+    await pause();
+  }
+}
+
+async function changeLanguageSetting() {
+  const { selectMenu, pause } = require("../utils/input");
+  const locale = require("../utils/locale");
+
+  const items = [
+    { label: "🖥️ Auto-detect System OS Language (Detecção Automática)", lang: "auto" },
+    { label: "🇧🇷 Português (pt-BR)", lang: "pt-BR" },
+    { label: "🇺🇸 English (en-US)", lang: "en-US" }
+  ];
+
+  const idx = await selectMenu("Idioma do CLI / CLI Language", items, 0, "Escolha o idioma do sistema:");
+  if (idx !== -1) {
+    const selected = items[idx];
+    locale.setLanguage(selected.lang);
+    showStatus(`Idioma alterado para / Language set to: ${selected.lang.toUpperCase()}`, "success");
+    await pause();
+  }
 }
 
 /**
@@ -198,6 +261,42 @@ async function resetPassword() {
   } else {
     showStatus(`Failed to reset password: ${result.error}`, "error");
   }
+  await pause();
+}
+
+async function changeCustomPassword() {
+  const { prompt } = require("../utils/input");
+  const newPass = await prompt("Digite a nova senha para o Dashboard: ");
+  if (!newPass) {
+    showStatus("Cancelado", "info");
+    await pause();
+    return;
+  }
+  const result = await api.updateSettings({ password: newPass });
+  if (result.success) {
+    showStatus("Senha do Dashboard alterada com sucesso!", "success");
+  } else {
+    showStatus(`Falha ao alterar senha: ${result.error}`, "error");
+  }
+  await pause();
+}
+
+async function exportDatabaseBackup() {
+  const fs = require("fs");
+  const path = require("path");
+  const { getCliDataDir } = require("../constants");
+  const dbPath = path.join(getCliDataDir(), "db", "data.sqlite");
+  if (!fs.existsSync(dbPath)) {
+    showStatus("Banco de dados SQLite não encontrado.", "error");
+    await pause();
+    return;
+  }
+  const destDir = path.join(getCliDataDir(), "backups");
+  if (!fs.existsSync(destDir)) fs.mkdirSync(destDir, { recursive: true });
+  const time = new Date().toISOString().replace(/[:.]/g, "-");
+  const destPath = path.join(destDir, `database-backup-${time}.sqlite`);
+  fs.copyFileSync(dbPath, destPath);
+  showStatus(`Backup exportado: ${destPath}`, "success");
   await pause();
 }
 

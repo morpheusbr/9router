@@ -51,8 +51,14 @@ const SLASH_COMMANDS = [
   "/plan", "/code", "/test", "/commit", "/review", "/skill", "/debug",
   "/read", "/model", "/fav", "/palette", "/web", "/menu", "/history",
   "/status", "/undo", "/save", "/copy", "/copy-code", "/paste",
-  "/paste-image", "/image", "/rollback", "/audit", "/stats", "/help",
-  "/clear", "/exit"
+  "/paste-image", "/image", "/rollback", "/audit", "/stats",
+  "/providers", "/combos", "/alias", "/personas", "/playground",
+  "/vacuum", "/logs", "/keyhealth", "/search", "/pack", "/settings",
+  "/security", "/run-tests", "/architecture",
+  "/consensus", "/watch", "/deps", "/changelog",
+  "/tokensaver", "/translator", "/media", "/quota",
+  "/consolelog", "/endpoint",
+  "/help", "/clear", "/exit"
 ];
 
 const COMMAND_DESCRIPTIONS = {
@@ -80,6 +86,30 @@ const COMMAND_DESCRIPTIONS = {
   "/rollback": "Revert git to pre-patch snapshot",
   "/audit": "Show audit log entries",
   "/stats": "Session telemetry — tokens, requests, time",
+  "/providers": "Manage provider connections and nodes",
+  "/combos": "Manage model combos and fallbacks",
+  "/alias": "Manage model alias mappings",
+  "/personas": "Switch AI agent persona and prompt rules",
+  "/playground": "Test prompt across multiple models in parallel",
+  "/vacuum": "Optimize and defragment SQLite database",
+  "/logs": "Stream live HTTP proxy request logs",
+  "/keyhealth": "Monitor API key health and failovers",
+  "/search": "Search the web directly from terminal",
+  "/pack": "Export or import full configuration package",
+  "/settings": "Configure tunnel, auth mode, and database",
+  "/security": "Run SAST static security audit scanner",
+  "/run-tests": "Run test suite with smart auto-fixer",
+  "/architecture": "Generate Mermaid.js architecture diagrams",
+  "/consensus": "Cross-evaluate answers from 3 top models",
+  "/watch": "Toggle real-time code integrity watch mode",
+  "/deps": "Audit project dependencies and package security",
+  "/changelog": "Generate release notes from git commit history",
+  "/tokensaver": "Configure token saver compression rules",
+  "/translator": "Manage AI transparent prompt translator",
+  "/media": "Manage image generation and vision media providers",
+  "/quota": "Manage rate limits (RPM/TPM) and daily budgets",
+  "/consolelog": "View raw PM2 and Node.js server system logs",
+  "/endpoint": "Inspect proxy connection URLs and test ping status",
   "/help": "Show this help",
   "/clear": "Reset chat history",
   "/exit": "Quit HiperRouter Agent"
@@ -106,19 +136,27 @@ function defaultCompleter(line) {
 
 async function prompt(question, options = {}) {
   const completer = typeof options === "function" ? options : (options.completer || defaultCompleter);
-  primeRawOnce();
-  return new Promise((resolve) => {
+  return suspendRawFor(() => new Promise((resolve, reject) => {
     const rl = readline.createInterface({
       input: process.stdin,
       output: process.stdout,
       completer: completer,
       terminal: true
     });
+
+    const onSigint = () => {
+      rl.close();
+      reject(new Error("SIGINT"));
+    };
+
+    rl.on("SIGINT", onSigint);
+
     rl.question(question, (answer) => {
+      rl.removeListener("SIGINT", onSigint);
       rl.close();
       resolve((answer || "").trim());
     });
-  });
+  }));
 }
 
 async function select(question, options) {
@@ -216,27 +254,26 @@ async function selectMenu(title, items, defaultIndex = 0, subtitle = "", headerC
       const filteredIndices = getFilteredIndices();
       const isWin = process.platform === "win32";
 
-      // Show filter input if active
-      if (filterQuery) {
-        console.log(`  ${COLORS.cyan}Filter: ${filterQuery}${COLORS.reset}${COLORS.dim}█${COLORS.reset}`);
-        console.log();
-      }
-
-      // Render only filtered items
+      // Render all filtered items with dynamic index numbers
       filteredIndices.forEach((itemIndex, displayIndex) => {
         const item = items[itemIndex];
         const isSelected = displayIndex === selectedIndex;
         const icon = isSelected ? (isWin ? ">" : "★") : (isWin ? " " : "☆");
+        const numLabel = `[${displayIndex + 1}]`.padEnd(5, " ");
+
         if (isSelected) {
-          console.log(` ${COLORS.reverse}${COLORS.bright}${icon} ${item.label}${COLORS.reset}`);
+          console.log(` ${COLORS.reverse}${COLORS.bright}${icon} ${numLabel} ${item.label}${COLORS.reset}`);
         } else {
-          console.log(`  ${icon} ${item.label}`);
+          console.log(`  ${icon} ${COLORS.dim}${numLabel}${COLORS.reset} ${item.label}`);
         }
       });
 
       if (filteredIndices.length === 0) {
         console.log(`  ${COLORS.dim}(no matches for "${filterQuery}")${COLORS.reset}`);
       }
+
+      // Render bottom input prompt for numeric shortcuts or filter text
+      console.log(`\n  ${COLORS.cyan}💡 Digite o número ou filtro (ex: 1, 12, "key") ou use ↑↓ + Enter:${COLORS.reset} ${filterQuery}${COLORS.dim}█${COLORS.reset}`);
     };
 
     const cleanup = () => {
@@ -256,13 +293,22 @@ async function selectMenu(title, items, defaultIndex = 0, subtitle = "", headerC
       if (!isActive || !key) return;
       if (key.name === "up") return move(-1);
       if (key.name === "down") return move(1);
+
       if (key.name === "return") {
         cleanup();
         const filteredIndices = getFilteredIndices();
+        if (filterQuery && !isNaN(parseInt(filterQuery, 10))) {
+          const num = parseInt(filterQuery, 10) - 1;
+          if (num >= 0 && num < items.length) {
+            resolve(num);
+            return;
+          }
+        }
         const originalIndex = filteredIndices[selectedIndex] ?? -1;
         resolve(originalIndex);
         return;
       }
+
       if (key.name === "escape") {
         if (filterQuery) {
           filterQuery = "";
@@ -275,14 +321,16 @@ async function selectMenu(title, items, defaultIndex = 0, subtitle = "", headerC
         return;
       }
       if (key.ctrl && key.name === "c") { cleanup(); resolve(-1); return; }
-      // Backspace — remove from filter
+
+      // Backspace — remove last char from query
       if (key.name === "backspace") {
         filterQuery = filterQuery.slice(0, -1);
         selectedIndex = 0;
         renderMenu();
         return;
       }
-      // Type to filter
+
+      // Type to filter or enter number
       if (_str && !key.ctrl && !key.meta && _str.length === 1 && _str >= " ") {
         filterQuery += _str;
         selectedIndex = 0;
