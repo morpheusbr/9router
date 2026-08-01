@@ -1,21 +1,21 @@
 const fs = require("fs");
 const path = require("path");
-const { getCliDataDir } = require("../constants");
+const { listCommandNames, COMMANDS } = require("./registry");
 
 function generateZshCompletion() {
+  const cmds = listCommandNames()
+    .map((name) => {
+      const desc = (COMMANDS[name].description || "").replace(/'/g, `'"'"'`);
+      return `    '${name}:${desc}'`;
+    })
+    .join("\n");
+
   return `#compdef hiperrouter
 
 _hiperrouter() {
   local -a commands
   commands=(
-    'doctor:Diagnóstico do sistema (Node, SQLite, portas)'
-    'key:Gerenciar chaves de provedores de AI'
-    'stats:Exibir telemetria de uso e consumo de tokens'
-    'backup:Criar ou restaurar backup de arquivos'
-    'sync:Configurar autocompletar em editores (VSCode, Kilo, OpenCode)'
-    'alias:Gerenciar apelidos de modelos'
-    'task:Executar agente autônomo em background'
-    'xai:Gerar vídeos Grok Imagine'
+${cmds}
   )
 
   _describe 'command' commands
@@ -26,10 +26,11 @@ _hiperrouter "$@"
 }
 
 function generateBashCompletion() {
+  const names = listCommandNames().join(" ");
   return `# bash completion for hiperrouter
 _hiperrouter_completions() {
   local cur="\${COMP_WORDS[COMP_CWORD]}"
-  local cmds="doctor key stats backup sync alias task xai --port --host --help --version"
+  local cmds="${names} --port --host --help --version --tray --quiet --no-browser --log --verbose --skip-update"
   COMPREPLY=( $(compgen -W "\${cmds}" -- \${cur}) )
 }
 complete -F _hiperrouter_completions hiperrouter

@@ -79,14 +79,22 @@ That's it! Start coding with FREE AI models.
 ## 🚀 CLI Options
 
 ```bash
-hiperrouter                    # Start with default settings
+hiperrouter                    # Start interactive (gateway + menu/chat)
+hiperrouter start              # Start gateway in background (tray)
+hiperrouter status             # Check if gateway is running
+hiperrouter stop               # Stop gateway
+hiperrouter restart            # Restart gateway
+hiperrouter doctor             # System health check
+hiperrouter help               # List all commands
+hiperrouter help sync          # Help for a specific command
 hiperrouter --port 8080        # Custom port
+hiperrouter --host 0.0.0.0     # Expose on LAN (default: 127.0.0.1)
 hiperrouter --no-browser       # Don't open browser
 hiperrouter --skip-update      # Skip auto-update check
-hiperrouter --help             # Show all options
+hiperrouter --help             # Show all options + commands
 ```
 
-**Dashboard**: `http://localhost:20128/dashboard`
+**Dashboard**: `http://localhost:20128/dashboard` (bind default is local-only)
 
 ---
 

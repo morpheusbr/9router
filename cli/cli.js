@@ -1,27 +1,10 @@
 #!/usr/bin/env node
 
-process.on("uncaughtException", (err, origin) => {
-  console.error(`\n❌ Uncaught Exception. This is a bug in HiperRouter CLI.`);
-  console.error(`   Origin: ${origin}`);
-  console.error(`   Error: ${err.stack || err.message}\n`);
-  process.exit(1);
-});
-
-process.on("unhandledRejection", (reason, promise) => {
-  console.error('\n❌ Unhandled Rejection. This is a bug in HiperRouter CLI.');
-  console.error(`   Reason: ${reason.stack || reason}\n`);
-  // Optionally log the promise that was rejected
-  // console.error(promise);
-});
-
 const path = require("path");
 const fs = require("fs");
 const { spawn } = require("child_process");
 
 const { 
-  createSpinner, 
-  compareVersions, 
-  isRestrictedEnvironment, 
   checkForUpdate, 
   openBrowser 
 } = require("./src/cli/utils/sysUtils");
@@ -34,16 +17,19 @@ const {
 const pkg = require("./package.json");
 const { ensureSqliteRuntime, buildEnvWithRuntime } = require("./hooks/sqliteRuntime");
 const { ensureTrayRuntime } = require("./hooks/trayRuntime");
-const { dispatchSubcommand } = require("./src/cli/commands/registry");
+const { dispatchSubcommand, COMMANDS } = require("./src/cli/commands/registry");
 const {
   APP_NAME,
   DEFAULT_PORT,
   DEFAULT_HOST,
-  MAX_PORT_ATTEMPTS,
   PORT_MIN,
   PORT_MAX,
-  PROCESS_IDENTIFIERS
 } = require("./src/cli/constants");
+const {
+  getLockFilePath,
+  acquireLock,
+  releaseLock,
+} = require("./src/cli/utils/lifecycle");
 
 const args = process.argv.slice(2);
 
@@ -55,48 +41,6 @@ const args = process.argv.slice(2);
   // Self-heal SQLite & Tray runtimes
   try { ensureSqliteRuntime({ silent: true }); } catch (e) { if (process.env.DEBUG) console.warn("[self-heal] SQLite:", e.message); }
   try { ensureTrayRuntime({ silent: true }); } catch (e) { if (process.env.DEBUG) console.warn("[self-heal] Tray:", e.message); }
-
-  const { getCliDataDir } = require("./src/cli/constants");
-
-  function getLockFilePath() {
-    return path.join(getCliDataDir(), ".cli.pid");
-  }
-
-  function acquireLock() {
-    try {
-      const lockFile = getLockFilePath();
-      const dir = path.dirname(lockFile);
-      if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-
-      if (fs.existsSync(lockFile)) {
-        const existingPid = parseInt(fs.readFileSync(lockFile, "utf8").trim(), 10);
-        if (existingPid && existingPid !== process.pid) {
-          try {
-            process.kill(existingPid, 0); // check if alive
-            return existingPid; // still running — lock held
-          } catch {
-            // stale lock, will overwrite
-          }
-        }
-      }
-      fs.writeFileSync(lockFile, String(process.pid), "utf8");
-      return 0;
-    } catch {
-      return 0; // lock check failed, proceed anyway
-    }
-  }
-
-  function releaseLock() {
-    try {
-      const lockFile = getLockFilePath();
-      if (fs.existsSync(lockFile)) {
-        const content = fs.readFileSync(lockFile, "utf8").trim();
-        if (parseInt(content, 10) === process.pid) {
-          fs.unlinkSync(lockFile);
-        }
-      }
-    } catch {}
-  }
 
   process.on("SIGINT", () => {
     releaseLock();
@@ -112,14 +56,17 @@ const args = process.argv.slice(2);
 
   const lockHolder = acquireLock();
   if (lockHolder) {
-    console.error(`❌ HiperRouter is already running (PID ${lockHolder}).`);
-    console.error(`   Stop it first, or delete: ${getLockFilePath()}`);
+    console.error(`❌ HiperRouter já está em execução (PID ${lockHolder}).`);
+    console.error(`   Pare com: hiperrouter stop`);
+    console.error(`   Ou remova o lock: ${getLockFilePath()}`);
     process.exit(1);
   }
 
   // Parse arguments
   let port = DEFAULT_PORT;
   let host = DEFAULT_HOST;
+  let hostFromCli = false;
+  let portFromCli = false;
   let noBrowser = false;
   let skipUpdate = false;
   let showLog = false;
@@ -140,6 +87,7 @@ const args = process.argv.slice(2);
         process.exit(1);
       }
       port = parsed;
+      portFromCli = true;
       i++;
     } else if (args[i] === "--host" || args[i] === "-H") {
       const raw = args[i + 1];
@@ -148,6 +96,7 @@ const args = process.argv.slice(2);
         process.exit(1);
       }
       host = raw.trim();
+      hostFromCli = true;
       i++;
     } else if (args[i] === "--no-browser" || args[i] === "-n") {
       noBrowser = true;
@@ -165,38 +114,18 @@ const args = process.argv.slice(2);
       verboseMode = true;
       process.env.DEBUG = "1";
     } else if (args[i] === "--help" || args[i] === "-h") {
-      console.log(`
-Usage: ${APP_NAME} [options]
-
-Options:
-  -p, --port <port>   Port to run the server (default: ${DEFAULT_PORT})
-  -H, --host <host>   Host to bind (default: ${DEFAULT_HOST})
-  -n, --no-browser    Don't open browser automatically
-  -l, --log           Show server logs (default: hidden)
-  -t, --tray          Run in system tray mode (background)
-  -q, --quiet         Suppress spinners and non-essential output
-  --verbose           Show debug information
-  --skip-update       Skip auto-update check
-  -h, --help          Show this help message
-  -v, --version       Show version
-
-Commands:
-  doctor              Run system health check (Node, SQLite, ports, permissions)
-  sync [tool]         Auto-configure VSCode, Kilo, OpenCode or Cursor to use HiperRouter
-  alias <list|set|rm> Manage model alias mappings
-  task "<prompt>"     Run headless agent task in background
-  xai video --prompt "..." --output video.mp4
-                      Generate a Grok Imagine video via the running gateway
-                      (see: ${APP_NAME} xai video --help)
-`);
+      const { printGlobalHelp } = require("./src/cli/commands/help");
+      printGlobalHelp(COMMANDS);
       process.exit(0);
     } else if (args[i] === "--version" || args[i] === "-v") {
       console.log(pkg.version);
       process.exit(0);
+    } else if (args[i].startsWith("-")) {
+      console.error(`❌ Opção desconhecida: ${args[i]}`);
+      console.error(`   Use: hiperrouter --help`);
+      process.exit(1);
     }
   }
-
-  // (Early server detection removed — always proceed to CLI chat/menu)
 
   // Auto-relaunch after update fallback
   if (skipUpdate && !trayMode && !process.stdin.isTTY) {
@@ -205,8 +134,6 @@ Commands:
   }
 
   const {
-    killAllAppProcesses,
-    killProcessOnPort,
     killProxyByPidFile,
     killTunnelByPidFile
   } = require("./src/cli/utils/processManager");
@@ -220,8 +147,12 @@ Commands:
   // Load saved preferences
   const configStore = require("./src/cli/utils/configStore");
   const savedPort = configStore.get("defaultPort");
-  if (savedPort && !args.includes("--port") && !args.includes("-p")) {
+  if (savedPort && !portFromCli) {
     port = savedPort;
+  }
+  const savedHost = configStore.get("defaultHost");
+  if (savedHost && !hostFromCli) {
+    host = savedHost;
   }
   const savedBrowser = configStore.get("autoBrowser");
   if (savedBrowser === false && !args.includes("--no-browser") && !args.includes("-n")) {
@@ -253,10 +184,10 @@ Commands:
   async function startServer(opts, updatePromise) {
     const { port, host, trayMode, showLog, quietMode: quiet } = opts;
     const latestVersionPromise = Promise.resolve(updatePromise);
-    const displayHost = host === DEFAULT_HOST ? "localhost" : host;
+    const displayHost = (host === "0.0.0.0" || host === "127.0.0.1") ? "localhost" : host;
     const url = `http://${displayHost}:${port}/dashboard`;
 
-    if (host === DEFAULT_HOST) {
+    if (host === "0.0.0.0") {
       const lanIp = getLanIp();
       if (lanIp) console.log(`\x1b[33m⚠ Network-exposed: reachable at http://${lanIp}:${port} (bound 0.0.0.0). Use --host 127.0.0.1 for local-only.\x1b[0m`);
     }

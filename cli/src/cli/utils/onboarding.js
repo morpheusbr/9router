@@ -40,11 +40,25 @@ async function runOnboarding(APP_NAME, DEFAULT_PORT) {
   }
   configStore.set("defaultPort", port);
 
-  // Step 2: Auto-open browser
+  // Step 2: Bind host (local-only vs LAN)
+  const hostChoice = await select(
+    `${COLORS.bright}Acesso ao servidor:${COLORS.reset}`,
+    [
+      "Somente este computador (127.0.0.1) — recomendado",
+      "Rede local / LAN (0.0.0.0) — outros devices na rede"
+    ]
+  );
+  const defaultHost = hostChoice === 1 ? "0.0.0.0" : "127.0.0.1";
+  configStore.set("defaultHost", defaultHost);
+  if (defaultHost === "0.0.0.0") {
+    console.log(`${COLORS.yellow}⚠ Gateway acessível na LAN. Use senha forte no dashboard.${COLORS.reset}`);
+  }
+
+  // Step 3: Auto-open browser
   const autoBrowser = await confirm(`${COLORS.bright}Abrir dashboard automaticamente no browser?${COLORS.reset}`);
   configStore.set("autoBrowser", autoBrowser);
 
-  // Step 3: Locale
+  // Step 4: Locale
   const localeChoice = await select(
     `${COLORS.bright}Idioma das mensagens:${COLORS.reset}`,
     [
@@ -54,13 +68,13 @@ async function runOnboarding(APP_NAME, DEFAULT_PORT) {
   );
   configStore.set("locale", localeChoice === 0 ? "pt-BR" : "en");
 
-  // Step 4: Quick provider setup hint
+  // Step 5: Quick provider setup hint
   console.log(`\n${COLORS.green}✅ Configuração salva!${COLORS.reset}\n`);
   console.log(`${COLORS.dim}Próximos passos:${COLORS.reset}`);
-  console.log(`  ${COLORS.cyan}1.${COLORS.reset} O servidor iniciará na porta ${port}`);
+  console.log(`  ${COLORS.cyan}1.${COLORS.reset} O servidor iniciará em ${defaultHost}:${port}`);
   console.log(`  ${COLORS.cyan}2.${COLORS.reset} Acesse o dashboard para adicionar providers`);
-  console.log(`  ${COLORS.cyan}3.${COLORS.reset} Use /help no chat para ver todos os comandos`);
-  console.log(`  ${COLORS.cyan}4.${COLORS.reset} Use TAB para autocompletar comandos\n`);
+  console.log(`  ${COLORS.cyan}3.${COLORS.reset} Use: hiperrouter status | stop | start`);
+  console.log(`  ${COLORS.cyan}4.${COLORS.reset} Use /help no chat ou: hiperrouter help\n`);
 
   configStore.set(ONBOARDING_DONE_KEY, true);
   configStore.set("onboardingDate", new Date().toISOString());

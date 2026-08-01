@@ -4,7 +4,8 @@ const os = require("os");
 
 const APP_NAME = "HiperRouter";
 const DEFAULT_PORT = 20128;
-const DEFAULT_HOST = "0.0.0.0";
+// Local-only by default — use --host 0.0.0.0 (or onboarding) to expose on LAN
+const DEFAULT_HOST = "127.0.0.1";
 const MAX_PORT_ATTEMPTS = 10;
 
 const PORT_MIN = 1024;
