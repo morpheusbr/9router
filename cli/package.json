@@ -17,10 +17,12 @@
   "scripts": {
     "dev": "nodemon -I --watch cli.js --watch src --watch hooks --ext js,json cli.js",
     "build": "node scripts/build-cli.js",
+    "prepack:cli": "npm test",
     "pack:cli": "npm run build && npm pack --pack-destination ../..",
     "publish:cli": "npm run build && npm publish",
     "postinstall": "node hooks/postinstall.js",
-    "prepublishOnly": "npm run build"
+    "prepublishOnly": "npm run build",
+    "test": "vitest run tests/"
   },
   "dependencies": {
     "enquirer": "^2.4.1",
@@ -44,6 +46,7 @@
   "license": "MIT",
   "devDependencies": {
     "esbuild": "^0.25.12",
-    "nodemon": "^3.1.14"
+    "nodemon": "^3.1.14",
+    "vitest": "^4.1.10"
   }
 }

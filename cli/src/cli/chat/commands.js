@@ -163,7 +163,7 @@ async function handleSlashCommand(lowerMsg, rawUserMessage, state) {
           try {
             const st = fs.statSync(fp);
             if (st.isDirectory() && !f.startsWith('.') && f !== 'node_modules') findBaks(fp, depth + 1);
-            else if (f.endsWith('.bak')) baks.push({ fp, mtime: st.mtimeMs });
+            else if (/\.bak(\.\d+)?$/.test(f)) baks.push({ fp, mtime: st.mtimeMs });
           } catch(e) {}
         }
       };
@@ -174,9 +174,9 @@ async function handleSlashCommand(lowerMsg, rawUserMessage, state) {
     } else {
       baks.sort((a, b) => b.mtime - a.mtime);
       const newest = baks[0].fp;
-      const original = newest.replace(/\.bak$/, '');
+      const original = newest.replace(/\.bak(\.\d+)?$/, '');
       const { confirm } = require('../utils/input');
-      const ok = await confirm(`\n${COLORS.yellow}Restaurar '${original}' a partir do backup '${newest}'?${COLORS.reset}`);
+      const ok = await confirm(`\n${COLORS.yellow}Restaurar '${path.basename(original)}' a partir do backup '${path.basename(newest)}'?${COLORS.reset}`);
       if (ok) {
         fs.copyFileSync(newest, original);
         fs.unlinkSync(newest);

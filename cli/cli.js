@@ -73,6 +73,7 @@ const args = process.argv.slice(2);
   let trayMode = false;
   let quietMode = false;
   let verboseMode = false;
+  let selfHealOptIn = false;
 
   for (let i = 0; i < args.length; i++) {
     if (args[i] === "--port" || args[i] === "-p") {
@@ -113,6 +114,8 @@ const args = process.argv.slice(2);
     } else if (args[i] === "--verbose") {
       verboseMode = true;
       process.env.DEBUG = "1";
+    } else if (args[i] === "--self-heal") {
+      selfHealOptIn = true;
     } else if (args[i] === "--help" || args[i] === "-h") {
       const { printGlobalHelp } = require("./src/cli/commands/help");
       printGlobalHelp(COMMANDS);
@@ -159,6 +162,13 @@ const args = process.argv.slice(2);
     noBrowser = true;
   }
 
+  // Self-heal (Wolverine): off by default — enable via --self-heal, env, or config
+  const selfHealEnabled =
+    selfHealOptIn
+    || process.env.HIPERROUTER_SELF_HEAL === "1"
+    || configStore.get("selfHeal", false) === true;
+  if (selfHealOptIn) configStore.set("selfHeal", true);
+
   // Startup banner (unless quiet or tray mode)
   if (!quietMode && !trayMode) {
     const { showBanner, showQuickHelp } = require("./src/cli/utils/banner");
@@ -179,10 +189,10 @@ const args = process.argv.slice(2);
 
   const updatePromise = checkForUpdate(skipUpdate);
 
-  startServer({ port, host, trayMode, showLog, skipUpdate, quietMode }, updatePromise);
+  startServer({ port, host, trayMode, showLog, skipUpdate, quietMode, selfHealEnabled }, updatePromise);
 
   async function startServer(opts, updatePromise) {
-    const { port, host, trayMode, showLog, quietMode: quiet } = opts;
+    const { port, host, trayMode, showLog, quietMode: quiet, selfHealEnabled: healOn } = opts;
     const latestVersionPromise = Promise.resolve(updatePromise);
     const displayHost = (host === "0.0.0.0" || host === "127.0.0.1") ? "localhost" : host;
     const url = `http://${displayHost}:${port}/dashboard`;
@@ -263,22 +273,25 @@ const args = process.argv.slice(2);
             console.error(`\x1b[31m   Server crashed immediately.\x1b[0m`);
           }
 
-          // Trigger Wolverine mode
-          try {
-            const { selfHeal } = require("./src/cli/chat/selfHealRuntime");
-            const fullLog = serverStderrBuffer.join("\n");
-            // Only try to heal if there's an actual stack trace / Error in the log
-            if (fullLog.includes("Error:") || fullLog.includes("Exception") || fullLog.match(/at\s+.*?:[0-9]+/)) {
-              console.log(`\n\x1b[33m⚡ Disparando Wolverine Mode para o Server (Next.js)...\x1b[0m`);
-              const healed = await selfHeal(fullLog, "server");
-              if (healed) {
-                console.log(`\n\x1b[32m🔄 Reiniciando servidor Web após auto-cura...\x1b[0m\n`);
-                startServer(opts, updatePromise);
-                return; // Prevent exit
+          // Trigger Wolverine mode only when explicitly enabled
+          if (healOn) {
+            try {
+              const { selfHeal } = require("./src/cli/chat/selfHealRuntime");
+              const fullLog = serverStderrBuffer.join("\n");
+              if (fullLog.includes("Error:") || fullLog.includes("Exception") || fullLog.match(/at\s+.*?:[0-9]+/)) {
+                console.log(`\n\x1b[33m⚡ Disparando Wolverine Mode para o Server (Next.js)...\x1b[0m`);
+                const healed = await selfHeal(fullLog, "server");
+                if (healed) {
+                  console.log(`\n\x1b[32m🔄 Reiniciando servidor Web após auto-cura...\x1b[0m\n`);
+                  startServer(opts, updatePromise);
+                  return;
+                }
               }
+            } catch (e) {
+              console.error("Wolverine mode crashed:", e.message);
             }
-          } catch (e) {
-            console.error("Wolverine mode crashed:", e.message);
+          } else {
+            console.error(`\x1b[2m   Auto-cura desligada. Ative com: hiperrouter --self-heal\x1b[0m`);
           }
 
           if (!isShuttingDown) {
@@ -323,15 +336,19 @@ const args = process.argv.slice(2);
       isShuttingDown = true;
       console.error("\x1b[31mFatal CLI Error:\x1b[0m", errStr);
 
-      try {
-        const { selfHeal } = require("./src/cli/chat/selfHealRuntime");
-        console.log(`\n\x1b[33m⚡ Disparando Wolverine Mode para o CLI...\x1b[0m`);
-        const healed = await selfHeal(errStr, context);
-        if (healed) {
-          console.log(`\n\x1b[32m✅ Arquivo do CLI corrigido. Por favor, reinicie o HiperRouter CLI.\x1b[0m\n`);
+      if (healOn) {
+        try {
+          const { selfHeal } = require("./src/cli/chat/selfHealRuntime");
+          console.log(`\n\x1b[33m⚡ Disparando Wolverine Mode para o CLI...\x1b[0m`);
+          const healed = await selfHeal(errStr, context);
+          if (healed) {
+            console.log(`\n\x1b[32m✅ Arquivo do CLI corrigido. Por favor, reinicie o HiperRouter CLI.\x1b[0m\n`);
+          }
+        } catch (e) {
+          console.error("Wolverine mode failed:", e.message);
         }
-      } catch (e) {
-        console.error("Wolverine mode failed:", e.message);
+      } else {
+        console.error(`\x1b[2m   Auto-cura desligada. Ative com: hiperrouter --self-heal  (ou HIPERROUTER_SELF_HEAL=1)\x1b[0m`);
       }
 
       cleanup();
