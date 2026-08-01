@@ -55,6 +55,16 @@ const COMMANDS = {
       return runRestart(args);
     },
   },
+  debug: {
+    description: "Ferramentas de diagnóstico (paths, config)",
+    usage: "hiperrouter debug <paths|config>",
+    category: "Diagnóstico",
+    examples: ["hiperrouter debug paths", "hiperrouter debug config"],
+    run: async (args) => {
+      const { run } = require("./debug");
+      return run(args);
+    },
+  },
   doctor: {
     description: "Diagnóstico (Node, SQLite, portas, permissões)",
     usage: "hiperrouter doctor",
