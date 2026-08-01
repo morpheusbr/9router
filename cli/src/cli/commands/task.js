@@ -1,18 +1,13 @@
 /**
  * hiperrouter task "<prompt>"
- * Envia prompt para o gateway local via /api/v1/chat/completions (SSE stream).
+ * Invoca agentWorker.js com tool use real.
  */
-const http = require("http");
+const { spawn } = require("child_process");
+const path = require("path");
 const configStore = require("../utils/configStore");
 const { resolvePort } = require("../utils/lifecycle");
 const { getApiKeys, createApiKey } = require("../api/client");
 
-/**
- * Obtém a API key para o CLI:
- * 1. Cache no configStore (localApiKey)
- * 2. Busca via gateway (getApiKeys)
- * 3. Cria uma nova (createApiKey) e salva no cache
- */
 async function resolveLocalApiKey() {
   const cached = configStore.get("localApiKey");
   if (cached) return cached;
@@ -28,38 +23,39 @@ async function resolveLocalApiKey() {
     }
   }
 
-  process.stderr.write("🔑 Nenhuma key encontrada. Criando uma nova para o CLI...\n");
+  process.stderr.write("🔑 Criando nova API key para o CLI...\n");
   const createRes = await createApiKey("HiperRouter CLI");
   if (createRes.success && createRes.data?.key) {
     configStore.set("localApiKey", createRes.data.key);
     return createRes.data.key;
   }
-
   return null;
 }
 
 async function run(args) {
-  // Parse flags: --model/-m, --port/-p, --help/-h
-  const opts = { model: null, port: null };
+  const opts = { model: null, port: null, maxIter: null, cwd: null };
   const promptParts = [];
 
   for (let i = 0; i < args.length; i++) {
     const a = args[i];
-    if ((a === "--model" || a === "-m") && args[i + 1]) {
-      opts.model = args[++i];
-    } else if ((a === "--port" || a === "-p") && args[i + 1]) {
-      opts.port = parseInt(args[++i], 10);
-    } else if (a === "--help" || a === "-h") {
+    if ((a === "--model" || a === "-m") && args[i + 1])       opts.model   = args[++i];
+    else if ((a === "--port"  || a === "-p") && args[i + 1])  opts.port    = parseInt(args[++i], 10);
+    else if ((a === "--iter"  || a === "-n") && args[i + 1])  opts.maxIter = args[++i];
+    else if (a === "--cwd" && args[i + 1])                    opts.cwd     = args[++i];
+    else if (a === "--help" || a === "-h") {
       console.log(`
 Uso: hiperrouter task "<prompt>" [opções]
 
-  -m, --model <id>   Modelo a usar (default: defaultModel do config)
-  -p, --port  <n>    Porta do gateway (default: config ou 20128)
-  -h, --help         Mostrar ajuda
+  -m, --model <id>    Modelo (default: defaultModel do config)
+  -p, --port  <n>     Porta do gateway (default: 20128)
+  -n, --iter  <n>     Máximo de iterações (default: 20)
+      --cwd   <dir>   Diretório de trabalho (default: cwd atual)
+  -h, --help          Mostrar ajuda
 
 Exemplos:
   hiperrouter task "explique este repo"
-  hiperrouter task "refatore style.css para Tailwind" --model gc/gemini-2.5-pro
+  hiperrouter task "adicione testes para configStore.js" --model gc/gemini-2.5-pro
+  hiperrouter task "refatore style.css" --cwd /home/www/meu-projeto
 `);
       return 0;
     } else {
@@ -73,92 +69,39 @@ Exemplos:
     return 1;
   }
 
-  const port = resolvePort(opts.port);
-  const model = opts.model || configStore.get("defaultModel", "meu-combo");
+  const port    = resolvePort(opts.port);
+  const model   = opts.model   || configStore.get("defaultModel", "meu-combo");
+  const maxIter = opts.maxIter || "20";
+  const cwd     = opts.cwd     || process.cwd();
 
   const apiKey = await resolveLocalApiKey();
   if (!apiKey) {
-    console.error("❌ Não foi possível obter API key. Verifique se o gateway está rodando: hiperrouter status");
+    console.error("❌ Não foi possível obter API key. Gateway rodando? hiperrouter status");
     return 1;
   }
 
-  console.log(`🤖 Agente → modelo: ${model}  porta: ${port}`);
-  console.log(`📝 Prompt: ${taskPrompt}\n`);
-
-  const payload = JSON.stringify({
-    model,
-    messages: [{ role: "user", content: taskPrompt }],
-    stream: true,
-  });
+  const workerPath = path.join(__dirname, "agentWorker.js");
 
   return new Promise((resolve) => {
-    const req = http.request(
-      {
-        hostname: "127.0.0.1",
-        port,
-        path: "/api/v1/chat/completions",
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Content-Length": Buffer.byteLength(payload),
-          "Authorization": `Bearer ${apiKey}`,
-        },
+    const worker = spawn(process.execPath, [workerPath], {
+      stdio: "inherit",
+      env: {
+        ...process.env,
+        HIPERROUTER_API_KEY:  apiKey,
+        HIPERROUTER_PORT:     String(port),
+        HIPERROUTER_MODEL:    model,
+        HIPERROUTER_PROMPT:   taskPrompt,
+        HIPERROUTER_CWD:      cwd,
+        HIPERROUTER_MAX_ITER: maxIter,
       },
-      (res) => {
-        if (res.statusCode >= 400) {
-          // Se 401, limpa o cache — pode ser que a key foi revogada
-          if (res.statusCode === 401) {
-            configStore.set("localApiKey", undefined);
-            console.error("❌ API key inválida ou revogada. Rode o comando novamente para obter uma nova.");
-          } else {
-            console.error(`❌ Gateway retornou HTTP ${res.statusCode}`);
-          }
-          res.resume();
-          resolve(1);
-          return;
-        }
-
-        let buffer = "";
-        res.on("data", (chunk) => {
-          buffer += chunk.toString();
-          const lines = buffer.split("\n");
-          buffer = lines.pop(); // guarda linha incompleta
-
-          for (const line of lines) {
-            if (!line.startsWith("data: ")) continue;
-            const data = line.slice(6).trim();
-            if (data === "[DONE]") continue;
-            try {
-              const json = JSON.parse(data);
-              const content = json.choices?.[0]?.delta?.content || "";
-              if (content) process.stdout.write(content);
-            } catch {
-              // linha SSE não-JSON — ignorar
-            }
-          }
-        });
-
-        res.on("end", () => {
-          console.log("\n\n✅ Agente finalizou.");
-          resolve(0);
-        });
-
-        res.on("error", (e) => {
-          console.error(`\n❌ Erro na resposta: ${e.message}`);
-          resolve(1);
-        });
-      }
-    );
-
-    req.on("error", (e) => {
-      console.error(`❌ Não foi possível conectar ao gateway na porta ${port}: ${e.message}`);
-      console.error(`   Verifique se o HiperRouter está rodando: hiperrouter status`);
-      resolve(1);
     });
 
-    req.write(payload);
-    req.end();
+    worker.on("close", (code) => resolve(code || 0));
+    worker.on("error", (e) => {
+      console.error(`❌ Falha ao iniciar agente: ${e.message}`);
+      resolve(1);
+    });
   });
 }
 
-module.exports = { run };
+module.exports = { run, resolveLocalApiKey };
