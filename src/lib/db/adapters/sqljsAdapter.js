@@ -1,9 +1,13 @@
 import fs from "node:fs";
 import path from "path";
 import { DATA_DIR } from "@/lib/dataDir.js";
+import { PRAGMA_SQL } from "../schema.js";
 
 async function loadSqlJs() {
-  const { initSqlJs } = await import("sql.js");
+  // sql.js exports only a default function — handle both ESM default and CJS module.exports
+  const mod = await import("sql.js");
+  const initSqlJs = mod.default ?? mod;
+  if (typeof initSqlJs !== "function") throw new Error(`sql.js default export is not a function (got ${typeof initSqlJs})`);
   return initSqlJs();
 }
 
@@ -97,6 +101,12 @@ export async function createSqlJsAdapter(filePath) {
       try { db.exec(`ROLLBACK TO ${sp}`); db.exec(`RELEASE ${sp}`); } catch {}
       throw e;
     }
+  }
+
+  function close() {
+    if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; }
+    if (dirty) persist();
+    db.close();
   }
 
   return { driver: "sql.js", run, get, all, exec, transaction, close, raw: db };
