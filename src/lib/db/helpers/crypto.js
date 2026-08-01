@@ -1,4 +1,7 @@
 import crypto from "node:crypto";
+import path from "node:path";
+import fs from "node:fs";
+import { DATA_DIR } from "@/lib/dataDir.js";
 
 function loadDbSecret() {
   // Use environment variable instead of writing to disk

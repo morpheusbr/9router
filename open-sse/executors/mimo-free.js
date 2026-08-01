@@ -10,7 +10,7 @@ const SESSION_AFFINITY_PREFIX = "ses_";
 const SESSION_ID_LENGTH = 24;
 const JWT_FALLBACK_TTL_SEC = 3000;
 const JWT_EXPIRY_BUFFER_MS = 300000;
-const SESSION_CHARS = "abcdefghijklmnopqrstuvwxyz0123456789";
+import { SESSION_CHARS } from "../config/runtimeConfig.js";
 
 // Anti-abuse gate: upstream rejects requests without a Chrome-like User-Agent with 403 "Illegal access"
 const USER_AGENTS = [

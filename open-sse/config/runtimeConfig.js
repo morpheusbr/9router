@@ -96,3 +96,13 @@ export function resolveRetryEntry(entry) {
 export const SKIP_PATTERNS = [
   "Please write a 5-10 word title for the following conversation:"
 ];
+
+// Dashboard and tunnel server port. Used by the CLI, tunnel manager,
+// and dashboard UI to construct local base URLs.
+export const SERVER_PORT = 20128;
+export const SERVER_BASE_URL = `http://localhost:${SERVER_PORT}`;
+
+// Character sets used across executors for session/fingerprint generation.
+export const SESSION_CHARS = "abcdefghijklmnopqrstuvwxyz0123456789";
+export const SESSION_CHARS_ALPHANUMERIC = SESSION_CHARS;
+export const URL_SAFE_ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";

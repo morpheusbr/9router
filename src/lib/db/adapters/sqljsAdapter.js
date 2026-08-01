@@ -1,8 +1,8 @@
 import fs from "node:fs";
 import path from "path";
-import { DATA_DIR } from "@/lib/db/helpers/dataDir.js";
+import { DATA_DIR } from "@/lib/dataDir.js";
 
-function loadSqlJs() {
+async function loadSqlJs() {
   const { initSqlJs } = await import("sql.js");
   return initSqlJs();
 }

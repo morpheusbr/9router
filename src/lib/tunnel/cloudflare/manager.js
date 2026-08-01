@@ -31,7 +31,9 @@ function throwIfCancelled(token) {
   if (token.cancelled) throw new Error("tunnel cancelled");
 }
 
-export async function enableTunnel(localPort = 20128) {
+import { SERVER_PORT } from "open-sse/config/runtimeConfig.js";
+
+export async function enableTunnel(localPort = SERVER_PORT) {
   console.log(`[Tunnel] enable start (port=${localPort})`);
   svc.cancelToken = { cancelled: false };
   svc.activeLocalPort = localPort;

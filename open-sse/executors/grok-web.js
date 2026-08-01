@@ -2,6 +2,7 @@ import { BaseExecutor } from "./base.js";
 import { PROVIDERS } from "../config/providers.js";
 import { SSE_DONE, SSE_HEADERS_NO_BUFFER } from "../utils/sseConstants.js";
 import { sseChunk } from "../utils/sse.js";
+import { SESSION_CHARS_ALPHANUMERIC } from "../config/runtimeConfig.js";
 
 const GROK_CHAT_API = PROVIDERS["grok-web"].baseUrl;
 const GROK_USER_AGENT = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36";
@@ -24,7 +25,7 @@ const MODEL_MAP = {
 };
 
 function randomString(length, alphanumeric = false) {
-  const chars = alphanumeric ? "abcdefghijklmnopqrstuvwxyz0123456789" : "abcdefghijklmnopqrstuvwxyz";
+  const chars = alphanumeric ? SESSION_CHARS_ALPHANUMERIC : "abcdefghijklmnopqrstuvwxyz";
   let result = "";
   for (let i = 0; i < length; i++) result += chars[Math.floor(Math.random() * chars.length)];
   return result;

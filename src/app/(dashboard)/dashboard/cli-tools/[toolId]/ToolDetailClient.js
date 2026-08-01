@@ -13,6 +13,7 @@ import {
 } from "../components";
 
 const CLOUD_URL = process.env.NEXT_PUBLIC_CLOUD_URL;
+import { SERVER_BASE_URL } from "open-sse/config/runtimeConfig.js";
 
 export default function ToolDetailClient({ toolId, machineId }) {
   const tool = CLI_TOOLS[toolId];
@@ -96,7 +97,8 @@ export default function ToolDetailClient({ toolId, machineId }) {
     if (tunnelEnabled && tunnelPublicUrl) return tunnelPublicUrl;
     if (cloudEnabled && CLOUD_URL) return CLOUD_URL;
     if (typeof window !== "undefined") return window.location.origin;
-    return "http://localhost:20128";
+
+    return SERVER_BASE_URL;
   };
 
   const renderToolCard = () => {

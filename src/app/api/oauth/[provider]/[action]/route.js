@@ -18,7 +18,7 @@ import {
   registerXaiSession,
   getXaiSessionStatus,
   clearXaiSession,
-} from "@/lib/oauth/utils.server";
+} from "@/lib/oauth/utils/server.js";
 
 async function completeXaiManualCode(code, state) {
   const session = state ? getXaiSessionStatus(state) : null;

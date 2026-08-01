@@ -3,7 +3,9 @@
 import { useState, useEffect, useCallback } from "react";
 import { Card, Button, Badge, Input } from "@/shared/components";
 
-const DEFAULT_MITM_ROUTER_BASE = "http://localhost:20128";
+import { SERVER_BASE_URL } from "open-sse/config/runtimeConfig.js";
+
+const DEFAULT_MITM_ROUTER_BASE = SERVER_BASE_URL;
 
 /**
  * Shared MITM infrastructure card — manages SSL cert + server start/stop.
