@@ -170,6 +170,22 @@ export async function GET(request, { params }) {
       });
     }
 
+    return NextResponse.json({ error: "Unknown action" }, { status: 400 });
+  } catch (error) {
+    // Sanitize error message to prevent leaking sensitive tokens
+    const errorMessage = error.message.replace(/[a-zA-Z0-9]{32,}/g, "***TOKEN***");
+    return NextResponse.json({
+      error: "OAuth error",
+      message: errorMessage
+    }, { status: 500 });
+  }
+}
+
+export async function POST(request, { params }) {
+  try {
+    const { provider, action } = await params;
+    const body = await request.json();
+
     if (action === "exchange") {
       const { code, redirectUri, codeVerifier, state, meta } = body;
 
