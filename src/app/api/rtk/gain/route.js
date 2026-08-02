@@ -3,12 +3,8 @@ import path from 'path';
 import os from 'os';
 import fs from 'node:fs';
 
-/** Load best available SQLite driver (dynamic — better-sqlite3 may lack glibc 2.29) */
+/** Load SQLite driver via sql.js (bypasses glibc 2.29 native binding errors on CentOS 8) */
 async function loadSqlDriver() {
-  try {
-    const mod = await import('better-sqlite3');
-    return mod.default;
-  } catch { /* glibc 2.29+ not found on this system — fallback */ }
   const sqlJsMod = await import('sql.js');
   const initSqlJs = sqlJsMod.default ?? sqlJsMod;
   const sqlJs = await initSqlJs({ locateFile: f => new URL(`sql.js/dist/${f}`, import.meta.url).pathname });
