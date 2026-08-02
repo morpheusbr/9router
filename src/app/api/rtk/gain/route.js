@@ -1,7 +1,33 @@
 import { NextResponse } from 'next/server';
-import Database from 'better-sqlite3';
 import path from 'path';
 import os from 'os';
+import fs from 'node:fs';
+
+/** Load best available SQLite driver (dynamic — better-sqlite3 may lack glibc 2.29) */
+async function loadSqlDriver() {
+  try {
+    const mod = await import('better-sqlite3');
+    return mod.default;
+  } catch { /* glibc 2.29+ not found on this system — fallback */ }
+  const sqlJsMod = await import('sql.js');
+  const initSqlJs = sqlJsMod.default ?? sqlJsMod;
+  const sqlJs = await initSqlJs({ locateFile: f => new URL(`sql.js/dist/${f}`, import.meta.url).pathname });
+  // Wrap sql.js to look like better-sqlite3 API (get()/all() only)
+  return class SqlJsLite {
+    #db;
+    constructor(file) {
+      if (!fs.existsSync(file)) throw new Error('DB not found');
+      const buf = fs.readFileSync(file);
+      this.#db = new sqlJs.Database(buf);
+    }
+    prepare(sql) {
+      const db = this.#db;
+      return { get(...p) { const s = db.prepare(sql); if (p.length) s.bind(p); const r = s.getAsObject(); s.free(); return r; },
+               all(...p) { const s = db.prepare(sql); if (p.length) s.bind(p); const rows = []; while (s.step()) rows.push(s.getAsObject()); s.free(); return rows; } };
+    }
+    close() { this.#db.close(); }
+  };
+}
 
 export async function GET() {
   try {
@@ -9,7 +35,6 @@ export async function GET() {
     let dbPath = path.join(os.homedir(), '.local', 'share', 'rtk', 'history.db');
 
     // Fallback if running under different user (www vs root vs real user)
-    const fs = require('fs');
     if (!fs.existsSync(dbPath)) {
       const fallbacks = [
         '/root/.local/share/rtk/history.db',
@@ -47,7 +72,9 @@ export async function GET() {
       });
     }
 
-    const db = new Database(dbPath, { readonly: true });
+    const Database = await loadSqlDriver();
+    const db = new Database(dbPath);
+    db.readonly = true;
 
     // Aggregate stats
     const statsRow = db.prepare(`

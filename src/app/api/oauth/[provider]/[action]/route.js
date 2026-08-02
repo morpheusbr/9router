@@ -4,7 +4,11 @@ import {
   generateAuthData,
   exchangeTokens,
   requestDeviceCode,
-  pollForToken
+  pollForToken,
+  extractCodexAccountInfo,
+  requiresDeviceCodePkce,
+  requiresPollPkce,
+  requiresExchangePkce
 } from "@/lib/oauth/providers";
 import { createProviderConnection } from "@/models";
 import {
@@ -19,6 +23,38 @@ import {
   getXaiSessionStatus,
   clearXaiSession,
 } from "@/lib/oauth/utils/server.js";
+
+/** Save an OAuth connection to the database (deduplicates the 3 call sites) */
+async function saveOauthConnection(provider, tokenData) {
+  return createProviderConnection({
+    provider,
+    authType: "oauth",
+    ...tokenData,
+    expiresAt: tokenData.expiresIn
+      ? new Date(Date.now() + tokenData.expiresIn * 1000).toISOString()
+      : null,
+    testStatus: "active",
+  });
+}
+
+/** Slim connection envelope used in all success responses */
+function connectionEnvelope(connection) {
+  return {
+    id: connection.id,
+    provider: connection.provider,
+    ...(connection.email != null && { email: connection.email }),
+    ...(connection.displayName && { displayName: connection.displayName }),
+  };
+}
+
+/** Sanitize error messages to prevent leaking sensitive tokens */
+function sanitizeOAuthError(error) {
+  const errorMessage = error.message.replace(/[a-zA-Z0-9]{32,}/g, "***TOKEN***");
+  return NextResponse.json({
+    error: "OAuth error",
+    message: errorMessage
+  }, { status: 500 });
+}
 
 async function completeXaiManualCode(code, state) {
   const session = state ? getXaiSessionStatus(state) : null;
@@ -35,15 +71,7 @@ async function completeXaiManualCode(code, state) {
       session.codeVerifier,
       state
     );
-    const connection = await createProviderConnection({
-      provider: "xai",
-      authType: "oauth",
-      ...tokenData,
-      expiresAt: tokenData.expiresIn
-        ? new Date(Date.now() + tokenData.expiresIn * 1000).toISOString()
-        : null,
-      testStatus: "active",
-    });
+    const connection = await saveOauthConnection("xai", tokenData);
     clearXaiSession(state);
     stopXaiProxy();
     return {
@@ -145,22 +173,11 @@ export async function GET(request, { params }) {
           }
         : undefined;
 
-      // Providers that don't use PKCE for device code (Grok CLI HAR: plain device_code, no challenge)
-      const noPkceDeviceProviders = [
-        "github",
-        "kiro",
-        "kimi",
-        "kimi-coding",
-        "kilocode",
-        "codebuddy-cn",
-        "qoder",
-        "grok-cli",
-      ];
+      // Provider config declares whether PKCE challenge is required
       let deviceData;
-      if (noPkceDeviceProviders.includes(provider)) {
+      if (!requiresDeviceCodePkce(provider)) {
         deviceData = await requestDeviceCode(provider, undefined, deviceOptions);
       } else {
-        // Qwen and other PKCE providers
         deviceData = await requestDeviceCode(provider, authData.codeChallenge, deviceOptions);
       }
 
@@ -172,12 +189,7 @@ export async function GET(request, { params }) {
 
     return NextResponse.json({ error: "Unknown action" }, { status: 400 });
   } catch (error) {
-    // Sanitize error message to prevent leaking sensitive tokens
-    const errorMessage = error.message.replace(/[a-zA-Z0-9]{32,}/g, "***TOKEN***");
-    return NextResponse.json({
-      error: "OAuth error",
-      message: errorMessage
-    }, { status: 500 });
+    return sanitizeOAuthError(error);
   }
 }
 
@@ -191,7 +203,6 @@ export async function POST(request, { params }) {
 
       // Detect if "code" is actually a raw JWT access token (starts with eyJ)
       if (code && code.startsWith("eyJ") && code.includes(".")) {
-        const { extractCodexAccountInfo } = await import("@/lib/oauth/providers");
         const info = extractCodexAccountInfo(code);
 
         // Also decode JWT directly for ChatGPT website tokens which use
@@ -222,18 +233,12 @@ export async function POST(request, { params }) {
 
         return NextResponse.json({
           success: true,
-          connection: {
-            id: connection.id,
-            provider: connection.provider,
-            email: connection.email,
-            displayName: connection.displayName,
-          }
+          connection: connectionEnvelope(connection)
         });
       }
 
-      // Cline and ClinePass use authorization_code without PKCE. Kimchi returns a browser token.
-      const noPkceExchangeProviders = ["cline", "clinepass", "kimchi"];
-      if (!code || !redirectUri || (!codeVerifier && !noPkceExchangeProviders.includes(provider))) {
+      // Some providers skip PKCE at exchange (cline, clinepass, kimchi)
+      if (!code || !redirectUri || (!codeVerifier && requiresExchangePkce(provider))) {
         return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
       }
 
@@ -241,24 +246,11 @@ export async function POST(request, { params }) {
       const tokenData = await exchangeTokens(provider, code, redirectUri, codeVerifier, state, meta);
 
       // Save to database
-      const connection = await createProviderConnection({
-        provider,
-        authType: "oauth",
-        ...tokenData,
-        expiresAt: tokenData.expiresIn
-          ? new Date(Date.now() + tokenData.expiresIn * 1000).toISOString()
-          : null,
-        testStatus: "active",
-      });
+      const connection = await saveOauthConnection(provider, tokenData);
 
       return NextResponse.json({
         success: true,
-        connection: {
-          id: connection.id,
-          provider: connection.provider,
-          email: connection.email,
-          displayName: connection.displayName,
-        }
+        connection: connectionEnvelope(connection)
       });
     }
 
@@ -269,23 +261,11 @@ export async function POST(request, { params }) {
         return NextResponse.json({ error: "Missing device code" }, { status: 400 });
       }
 
-      // Providers that don't use PKCE for device code
-      const noPkceProviders = ["github", "kimi", "kimi-coding", "kilocode", "codebuddy-cn"];
+      // Provider config declares whether PKCE challenge is required at poll time
       let result;
-      if (noPkceProviders.includes(provider)) {
-        // kimi needs extraData._kimiDeviceId for stable X-Msh-Device-Id (CLIProxyAPI parity)
+      if (!requiresPollPkce(provider)) {
+        // kimi/kiro pass extraData for special fields (deviceId, clientId, etc.)
         result = await pollForToken(provider, deviceCode, null, extraData);
-      } else if (provider === "kiro") {
-        // Kiro needs extraData (clientId, clientSecret) from device code response
-        result = await pollForToken(provider, deviceCode, null, extraData);
-      } else if (provider === "qoder") {
-        // Qoder needs both the PKCE verifier (codeVerifier) and the machineId
-        // captured at device-code time (extraData._qoderMachineId) so
-        // mapTokens can persist it for COSY signing.
-        if (!codeVerifier) {
-          return NextResponse.json({ error: "Missing code verifier" }, { status: 400 });
-        }
-        result = await pollForToken(provider, deviceCode, codeVerifier, extraData);
       } else {
         // Qwen and other PKCE providers
         if (!codeVerifier) {
@@ -297,22 +277,11 @@ export async function POST(request, { params }) {
       if (result.success) {
         // Save to database (legacy kimi-coding OAuth → dual-auth kimi)
         const providerId = provider === "kimi-coding" ? "kimi" : provider;
-        const connection = await createProviderConnection({
-          provider: providerId,
-          authType: "oauth",
-          ...result.tokens,
-          expiresAt: result.tokens.expiresIn
-            ? new Date(Date.now() + result.tokens.expiresIn * 1000).toISOString()
-            : null,
-          testStatus: "active",
-        });
+        const connection = await saveOauthConnection(providerId, result.tokens);
 
         return NextResponse.json({
           success: true,
-          connection: {
-            id: connection.id,
-            provider: connection.provider,
-          }
+          connection: connectionEnvelope(connection)
         });
       }
 
@@ -338,11 +307,6 @@ export async function POST(request, { params }) {
 
     return NextResponse.json({ error: "Unknown action" }, { status: 400 });
   } catch (error) {
-    // Sanitize error message to prevent leaking sensitive tokens
-    const errorMessage = error.message.replace(/[a-zA-Z0-9]{32,}/g, "***TOKEN***");
-    return NextResponse.json({
-      error: "OAuth error",
-      message: errorMessage
-    }, { status: 500 });
+    return sanitizeOAuthError(error);
   }
 }

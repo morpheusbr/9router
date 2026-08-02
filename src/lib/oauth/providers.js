@@ -260,6 +260,8 @@ const PROVIDERS = {
   "grok-cli": {
     config: GROK_CLI_CONFIG,
     flowType: "device_code",
+    skipDeviceCodePkce: true,
+    skipPollPkce: true,
     requestDeviceCode: async (config) => {
       const body = new URLSearchParams({
         client_id: config.clientId,
@@ -674,6 +676,8 @@ const PROVIDERS = {
   qoder: {
     config: QODER_CONFIG,
     flowType: "device_code",
+    skipDeviceCodePkce: true,
+    // Note: qoder DOES require PKCE at poll time, so skipPollPkce is false/omitted.
     // Qoder uses a custom device flow: PKCE + nonce + machine_id are generated
     // locally, the user lands on qoder.com/device/selectAccounts in the
     // browser, and we poll openapi.qoder.sh until a `dt-...` token appears.
@@ -826,6 +830,8 @@ const PROVIDERS = {
   github: {
     config: GITHUB_CONFIG,
     flowType: "device_code",
+    skipDeviceCodePkce: true,
+    skipPollPkce: true,
     requestDeviceCode: async (config) => {
       const response = await fetch(config.deviceCodeUrl, {
         method: "POST",
@@ -921,6 +927,8 @@ const PROVIDERS = {
   kiro: {
     config: KIRO_CONFIG,
     flowType: "device_code",
+    skipDeviceCodePkce: true,
+    skipPollPkce: true,
     // Kiro uses AWS SSO OIDC - requires client registration first
     requestDeviceCode: async (config, codeChallenge, options = {}) => {
       const trimmedRegion = typeof options.region === "string" ? options.region.trim() : "";
@@ -1086,6 +1094,8 @@ const PROVIDERS = {
   kimi: {
     config: KIMI_CONFIG,
     flowType: "device_code",
+    skipDeviceCodePkce: true,
+    skipPollPkce: true,
     requestDeviceCode: async (config) => {
       const { buildKimiHeaders } = await import("open-sse/config/appConstants.js");
       const deviceId = crypto.randomUUID();
@@ -1160,6 +1170,8 @@ const PROVIDERS = {
   kilocode: {
     config: KILOCODE_CONFIG,
     flowType: "device_code",
+    skipDeviceCodePkce: true,
+    skipPollPkce: true,
     requestDeviceCode: async (config) => {
       const response = await fetch(config.initiateUrl, {
         method: "POST",
@@ -1217,6 +1229,7 @@ const PROVIDERS = {
   cline: {
     config: CLINE_CONFIG,
     flowType: "authorization_code",
+    skipExchangePkce: true,
     buildAuthUrl: (config, redirectUri) => {
       const params = new URLSearchParams({
         client_type: "extension",
@@ -1275,6 +1288,7 @@ const PROVIDERS = {
   clinepass: {
     config: CLINEPASS_CONFIG,
     flowType: "authorization_code",
+    skipExchangePkce: true,
     buildAuthUrl: (config, redirectUri) => {
       const params = new URLSearchParams({
         client_type: "extension",
@@ -1398,6 +1412,8 @@ const PROVIDERS = {
   "codebuddy-cn": {
     config: CODEBUDDY_CONFIG,
     flowType: "device_code",
+    skipDeviceCodePkce: true,
+    skipPollPkce: true,
     requestDeviceCode: async (config) => {
       const response = await fetch(`${config.stateUrl}?platform=${config.platform}`, {
         method: "POST",
@@ -1471,6 +1487,7 @@ const PROVIDERS = {
   kimchi: {
     config: KIMCHI_CONFIG,
     flowType: "browser_token",
+    skipExchangePkce: true,
     buildAuthUrl: (config, redirectUri, state) => {
       const baseUrl = (config.webAppUrl || "https://app.kimchi.dev").replace(/\/+$/, "");
       const params = new URLSearchParams({
@@ -1559,6 +1576,24 @@ export function getProvider(name) {
  */
 export function getProviderNames() {
   return Object.keys(PROVIDERS);
+}
+
+/** Whether provider skips PKCE challenge at device-code request time */
+export function requiresDeviceCodePkce(name) {
+  const p = getProvider(name);
+  return !p.skipDeviceCodePkce;
+}
+
+/** Whether provider skips code-verifier at poll time */
+export function requiresPollPkce(name) {
+  const p = getProvider(name);
+  return !p.skipPollPkce;
+}
+
+/** Whether provider skips code-verifier at exchange time */
+export function requiresExchangePkce(name) {
+  const p = getProvider(name);
+  return !p.skipExchangePkce;
 }
 
 /**
