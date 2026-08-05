@@ -41,7 +41,7 @@ function getRecoveryProvider() {
   try {
     // Try to load sqlite dynamically, fallback if not available
     const Database = require("better-sqlite3");
-    const dbPath = path.join(getCliDataDir(), "db.sqlite");
+    const dbPath = path.join(getCliDataDir(), "db", "data.sqlite");
     if (!fs.existsSync(dbPath)) return null;
 
     const db = new Database(dbPath, { readonly: true });

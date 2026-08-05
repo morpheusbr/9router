@@ -18,13 +18,12 @@ function makeDirectRequest(providerConfig, messages) {
       const otherMsgs = messages.filter(m => m.role !== "system");
 
       bodyObj = {
-        model: "claude-3-5-sonnet-latest",
+        model: "claude-sonnet-4-20250514",
         max_tokens: 4000,
         system: systemMsg,
         messages: otherMsgs
       };
     } else {
-      // OpenAI-compatible (openai, groq, etc)
       const url = new URL(providerConfig.baseUrl);
       hostname = url.hostname;
       path = url.pathname + "/chat/completions";
@@ -33,7 +32,7 @@ function makeDirectRequest(providerConfig, messages) {
         "Content-Type": "application/json"
       };
       bodyObj = {
-        model: providerConfig.provider === "groq" ? "llama-3.1-70b-versatile" : "gpt-4o",
+        model: providerConfig.provider === "groq" ? "llama-3.3-70b-versatile" : "gpt-4o",
         messages: messages,
         temperature: 0.1
       };
@@ -43,7 +42,8 @@ function makeDirectRequest(providerConfig, messages) {
       hostname,
       path,
       method: "POST",
-      headers
+      headers,
+      timeout: 30000,
     }, (res) => {
       let data = "";
       res.on("data", chunk => data += chunk);
@@ -63,6 +63,11 @@ function makeDirectRequest(providerConfig, messages) {
           reject(e);
         }
       });
+    });
+
+    req.on("timeout", () => {
+      req.destroy();
+      reject(new Error("Recovery LLM request timed out (30s)"));
     });
 
     req.on("error", reject);

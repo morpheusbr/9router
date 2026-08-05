@@ -13,7 +13,7 @@ async function orchestrateCodeSubagents(taskPrompt, projectContext, options) {
   const { port, apiKey, model } = options;
 
   async function askSubagent(roleName, systemPrompt, userMessage) {
-    process.stdout.write(`\n${COLORS.cyan}[Subagent: ${roleName}] Analisando...${COLORS.reset}`);
+    process.stdout.write(`\n${COLORS.cyan}[Subagent: ${roleName}] Analisando...${COLORS.reset}\n`);
     try {
       const response = await fetch(`http://localhost:${port}/v1/chat/completions`, {
         method: "POST",
@@ -22,22 +22,51 @@ async function orchestrateCodeSubagents(taskPrompt, projectContext, options) {
           "Authorization": `Bearer ${apiKey}`,
           "x-hiperrouter-cli": "true"
         },
-        body: JSON.stringify({ 
-          model, 
+        body: JSON.stringify({
+          model,
           messages: [
             { role: "system", content: systemPrompt },
             { role: "user", content: userMessage }
           ],
-          stream: false 
+          stream: true
         }),
         signal: AbortSignal.timeout(120000)
       });
 
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      const data = await response.json();
-      const reply = data.choices && data.choices[0] && data.choices[0].message.content;
-      console.log(` ${COLORS.green}OK!${COLORS.reset}`);
-      return reply || "";
+
+      let fullReply = "";
+      if (response.body) {
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder("utf-8");
+        let sseBuffer = "";
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          sseBuffer += decoder.decode(value, { stream: true });
+          const lines = sseBuffer.split('\n');
+          sseBuffer = lines.pop();
+
+          for (let line of lines) {
+            line = line.trim();
+            if (line.startsWith('data: ') && line !== 'data: [DONE]') {
+              try {
+                const data = JSON.parse(line.substring(6));
+                const content = data.choices?.[0]?.delta?.content || "";
+                if (content) {
+                  fullReply += content;
+                  process.stdout.write(`${COLORS.dim}${content}${COLORS.reset}`);
+                }
+              } catch (e) { /* ignore malformed */ }
+            }
+          }
+        }
+      }
+
+      console.log(`\n${COLORS.green}[${roleName}] Concluído!${COLORS.reset}`);
+      return fullReply || "";
     } catch (e) {
       console.log(` ${COLORS.red}Falha (${e.message})${COLORS.reset}`);
       return `[Falha no subagente ${roleName}]`;

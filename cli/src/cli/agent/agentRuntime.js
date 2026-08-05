@@ -171,8 +171,8 @@ class AgentRuntime extends EventEmitter {
           if (toolTookOver) break;
         }
 
-        // --- 3. Self-Healing Bash (post-pass para blocos não executados) ---
-        if (!aiThinking && !toolTookOver) {
+        // --- 3. Self-Healing Bash (post-pass APENAS se nenhuma bash block foi executada) ---
+        if (!aiThinking && !toolTookOver && executedCmds.size === 0) {
           const shResult = await this._selfHealingBashPass(aiFullMessage, messages, executedCmds);
           if (shResult.aiThinking) {
             aiThinking = true;

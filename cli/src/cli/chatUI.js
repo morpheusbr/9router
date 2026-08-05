@@ -18,6 +18,44 @@ const { execSync, spawn, spawnSync } = require("child_process");
 const { logAudit, createGitCheckpoint, rollbackGitCheckpoint, processPatches, processNewFiles } = require("./chat/patchEngine");
 const { showHelp, showAuditLogs } = require("./chat/commands");
 
+/**
+ * Estimativa simples de tokens (chars / 4 ≈ tokens para modelos OpenAI/Claude).
+ * Não é preciso, mas suficiente para gerenciar contexto.
+ */
+function estimateTokens(text) {
+  if (!text) return 0;
+  return Math.ceil(text.length / 4);
+}
+
+/**
+ * Conta tokens estimados em todo o array de mensagens.
+ */
+function estimateMessagesTokens(messages) {
+  let total = 0;
+  for (const m of messages) {
+    total += estimateTokens(m.content) + 4; // overhead por mensagem
+  }
+  return total;
+}
+
+/**
+ * Limites de contexto por categoria de modelo.
+ */
+const CONTEXT_LIMITS = {
+  small: 8192,     // gpt-3.5, claude-instant
+  medium: 32768,   // gpt-4-turbo, claude-3-haiku
+  large: 131072,   // gpt-4o, claude-3.5-sonnet
+  xlarge: 1048576, // gemini-1.5-pro, claude-3-opus
+};
+
+function getContextLimit(modelName) {
+  const m = (modelName || '').toLowerCase();
+  if (m.includes('gemini') || m.includes('opus') || m.includes('128k') || m.includes('200k')) return CONTEXT_LIMITS.xlarge;
+  if (m.includes('gpt-4o') || m.includes('sonnet') || m.includes('claude-3.5') || m.includes('128k')) return CONTEXT_LIMITS.large;
+  if (m.includes('gpt-4') || m.includes('haiku') || m.includes('32k')) return CONTEXT_LIMITS.medium;
+  return CONTEXT_LIMITS.medium; // default seguro
+}
+
 async function startChatUI(port) {
   // Health check + version compatibility before starting chat
   try {
@@ -98,28 +136,30 @@ async function startChatUI(port) {
   } catch(e) {}
   let currentProjectContext = projectContext;
 
-  // godModeRules é constante durante toda a sessão — process.cwd() nunca muda
-  const godModeRules = `\nREGRAS CRÍTICAS DO SISTEMA (MODO DEUS):
-1. TERMINAL: Qualquer sugestão de comando bash DEVE ser prefixada com 'rtk '. Seu CWD é ${process.cwd()}.
-2. AUTO-DISCOVERY: Use <grep search="termo" /> sozinho se precisar buscar código. O sistema fará a busca.
-3. WEB-SURFING: Para ler uma URL/doc na web, use <fetch url="https://..." /> sozinho. O sistema fará o download.
-4. NUNCA PEÇA PARA O USUÁRIO COLAR CÓDIGO: Você é um agente autônomo. Se precisar ver um arquivo, NUNCA peça para o usuário "colar o código". Use o terminal (ex: \`\`\`bash\nrtk cat caminho/arquivo.js\n\`\`\`) para ler o conteúdo você mesmo.
-5. NUNCA ALUCINE BUGS: Você NÃO PODE inventar erros de código sem antes ler os arquivos REAIS usando o terminal. Sempre valide se o bug existe antes de aplicar um patch.
-6. SMART PATCH: Para editar um arquivo existente, NUNCA use bash (sed/echo/cat) nem reescreva o arquivo inteiro. Use estritamente este bloco de edição cirúrgica:
-<patch path="caminho/arquivo.js">
-<<<<
-código antigo exato (incluindo espaços e quebras de linha exatas a serem removidas)
-====
-código novo (o que vai entrar no lugar)
->>>>
-</patch>
-7. AUTO-WRITE: Apenas para criar arquivos NOVOS DO ZERO, use <file path="caminho/arquivo.js">conteúdo completo</file>. NUNCA coloque blocos <<<< ==== >>>> dentro da tag <file>.
-8. SCRIPTS TEMPORÁRIOS: Crie scripts temporários APENAS na pasta 'scripts/'. Nos blocos de comando bash, obrigatoriamente inclua a exclusão do script após o uso.
-9. GRAPHIFY: Para consultar o grafo, NUNCA invente tags XML como <tool_call>. Use APENAS o terminal: \`\`\`bash\nrtk graphify query "sua pergunta"\n\`\`\`
-10. ZERO XML INVENTADO: A interface final será exibida para humanos. É ESTRITAMENTE PROIBIDO gerar blocos <tool_call> ou <function>. Sempre que precisar do terminal, use blocos markdown puros.
-11. PROATIVIDADE EXTREMA: Se a requisição do usuário for genérica (ex: "vamos melhorar o projeto"), É ESTRITAMENTE PROIBIDO responder apenas com perguntas curtas (ex: "O que quer melhorar?"). Você DEVE tomar a iniciativa: use o terminal para explorar a base de código, identifique gargalos e responda com um diagnóstico técnico profundo contendo propostas de melhorias concretas.
-12. PROVA DE TRABALHO (PROOF OF WORK): É ESTRITAMENTE PROIBIDO escrever códigos "hipotéticos" baseados em suposições (ex: "Não preciso ver os arquivos"). Antes de propor ou criticar qualquer arquitetura, VOCÊ DEVE OBRIGATORIAMENTE emitir um comando bash (como 'rtk cat' ou 'rtk grep') para ler o estado atual do projeto. Pular a etapa de leitura é considerado uma falha grave de protocolo.
-13. ZERO INTERROGATÓRIO (NO QUESTIONS): É ABSOLUTAMENTE PROIBIDO fazer perguntas ao usuário sobre o estado do código, arquitetura ou dependências (ex: "Qual biblioteca está no package.json?"). O usuário não é seu assistente de busca. Você deve descobrir TODAS as respostas executando comandos bash (ex: 'rtk cat package.json') por conta própria.`;
+  // godModeRules modularizado — core sempre presente, extras por comando
+  const RULES_CORE = `\nREGRAS CRÍTICAS DO SISTEMA:
+1. TERMINAL: Comandos bash DEVE ser prefixados com 'rtk '. CWD: ${process.cwd()}.
+2. NUNCA PEÇA PARA O USUÁRIO COLAR CÓDIGO: Use o terminal (rtk cat) para ler arquivos.
+3. NUNCA ALUCINE BUGS: Valide se o bug existe lendo os arquivos REAIS antes de propor patches.
+4. ZERO XML INVENTADO: É PROIBIDO gerar blocos <tool_call> ou <function>. Use markdown puro.
+5. PROATIVIDADE EXTREMA: Nunca responda apenas com perguntas. Explore o código com o terminal.
+6. PROVA DE TRABALHO: Antes de propor arquitetura, leia o estado atual com rtk cat/grep.
+7. ZERO INTERROGATÓRIO: Descubra TUDO executando comandos bash. Nunca pergunte sobre o código.`;
+
+  const RULES_CODE_EDIT = `
+8. SMART PATCH: Para editar arquivo existente, use:
+   <patch path="caminho/arquivo.js">
+   <<<<
+   código antigo exato
+   ====
+   código novo
+   >>>>
+   </patch>
+9. AUTO-WRITE: Apenas para arquivos NOVOS: <file path="...">conteúdo</file>. Sem <<<< ==== >>>> dentro.
+10. SCRIPTS TEMPORÁRIOS: Apenas na pasta 'scripts/'. Inclua exclusão após uso.
+11. AUTO-DISCOVERY: Use <grep search="termo" /> para buscar código.
+12. WEB-SURFING: Use <fetch url="https://..." /> para ler docs na web.
+13. GRAPHIFY: Consulte o grafo com: rtk graphify query "pergunta".`;
 
   while (true) {
     // Auto-recarregar contexto do grafo se o arquivo foi atualizado desde o início da sessão
@@ -142,12 +182,20 @@ código novo (o que vai entrar no lugar)
     const uptimeMin = Math.round((Date.now() - sessionStartTime) / 60000);
     const activePersona = require("./utils/configStore").get("activePersona") || "god";
     const activeLang = require("./utils/locale").getActiveLanguage();
-    const rawStatus = ` 🤖 Model: ${model} │ ⚡ Persona: ${activePersona.toUpperCase()} │ 🌐 Lang: ${activeLang} │ 📡 Port: :${port} │ 💬 Msgs: ${messages.length} │ ⏱️ Uptime: ${uptimeMin}m `;
+    const estimatedTokens = estimateMessagesTokens(messages);
+    const contextLimit = getContextLimit(model);
+    const contextPct = Math.min(99, Math.round((estimatedTokens / contextLimit) * 100));
+    const contextColor = contextPct > 80 ? COLORS.red : contextPct > 50 ? COLORS.yellow : COLORS.green;
+    const rawStatus = ` 🤖 Model: ${model} │ ⚡ Persona: ${activePersona.toUpperCase()} │ 🌐 Lang: ${activeLang} │ 📡 Port: :${port} │ 💬 Msgs: ${messages.length} │ 🧠 Ctx: ~${contextPct}% │ ⏱️ Uptime: ${uptimeMin}m `;
     const boxWidth = Math.max(78, rawStatus.length + 4);
     const innerWidth = boxWidth - 2;
     const paddingRight = Math.max(0, innerWidth - rawStatus.length);
 
-    const coloredStatus = ` 🤖 Model: ${COLORS.cyan}${model}${COLORS.reset} │ ⚡ Persona: ${COLORS.green}${activePersona.toUpperCase()}${COLORS.reset} │ 🌐 Lang: ${COLORS.cyan}${activeLang}${COLORS.reset} │ 📡 Port: ${COLORS.yellow}:${port}${COLORS.reset} │ 💬 Msgs: ${messages.length} │ ⏱️ Uptime: ${uptimeMin}m ${" ".repeat(paddingRight)}`;
+    const coloredStatus = ` 🤖 Model: ${COLORS.cyan}${model}${COLORS.reset} │ ⚡ Persona: ${COLORS.green}${activePersona.toUpperCase()}${COLORS.reset} │ 🌐 Lang: ${COLORS.cyan}${activeLang}${COLORS.reset} │ 📡 Port: ${COLORS.yellow}:${port}${COLORS.reset} │ 💬 Msgs: ${messages.length} │ 🧠 Ctx: ${contextColor}~${contextPct}%${COLORS.reset} │ ⏱️ Uptime: ${uptimeMin}m ${" ".repeat(paddingRight)}`;
+
+    if (contextPct > 80) {
+      console.log(`${COLORS.yellow}⚠️  Contexto em ~${contextPct}% (${estimatedTokens.toLocaleString()} tokens). Use /clear para liberar espaço.${COLORS.reset}`);
+    }
 
     console.log(`\n${COLORS.cyan}╭${"─".repeat(innerWidth)}╮${COLORS.reset}`);
     console.log(`${COLORS.cyan}│${COLORS.reset}${coloredStatus}${COLORS.cyan}│${COLORS.reset}`);
@@ -219,6 +267,11 @@ código novo (o que vai entrar no lugar)
 
       if (imgFile && fs.existsSync(imgFile)) {
         const stats = fs.statSync(imgFile);
+        const MAX_IMG_SIZE = 5 * 1024 * 1024; // 5MB
+        if (stats.size > MAX_IMG_SIZE) {
+          console.log(`${COLORS.red}⚠️ Imagem '${path.basename(imgFile)}' tem ${(stats.size/1024/1024).toFixed(1)}MB (limite: 5MB). Redimensione antes de anexar.${COLORS.reset}\n`);
+          continue;
+        }
         const kb = (stats.size / 1024).toFixed(1);
         const b64 = fs.readFileSync(imgFile).toString('base64');
         const ext = path.extname(imgFile).substring(1) || 'png';
@@ -247,9 +300,15 @@ código novo (o que vai entrar no lugar)
       let allContent = "";
       for (const fullPath of filesToRead) {
         if (fs.existsSync(fullPath) && fs.statSync(fullPath).isFile()) {
-           const fileContent = sanitizePromptContext(fs.readFileSync(fullPath, "utf-8"));
-           allContent += `\n\n[CONTEÚDO LIDO DE '${path.basename(fullPath)}']:\n\`\`\`\n${fileContent}\n\`\`\``;
-           console.log(`${COLORS.dim}[Modo Read: Arquivo '${path.basename(fullPath)}' injetado]${COLORS.reset}`);
+           const fileSize = fs.statSync(fullPath).size;
+           if (fileSize > 102400) {
+             console.log(`${COLORS.yellow}⚠️ Arquivo '${path.basename(fullPath)}' tem ${(fileSize/1024).toFixed(0)}KB (limite: 100KB). Truncando...${COLORS.reset}`);
+           }
+           const rawContent = fs.readFileSync(fullPath, "utf-8");
+           const fileContent = sanitizePromptContext(rawContent.substring(0, 102400));
+           const truncNotice = rawContent.length > 102400 ? `\n...[TRUNCADO de ${rawContent.length} para 102400 caracteres]` : '';
+           allContent += `\n\n[CONTEÚDO LIDO DE '${path.basename(fullPath)}']:\n\`\`\`\n${fileContent}${truncNotice}\n\`\`\``;
+           console.log(`${COLORS.dim}[Modo Read: Arquivo '${path.basename(fullPath)}' (${(fileSize/1024).toFixed(1)}KB) injetado]${COLORS.reset}`);
         } else if (!pattern.includes('*')) {
            console.log(`${COLORS.red}Aviso: Arquivo '${pattern}' não encontrado. Ignorando /read.${COLORS.reset}\n`);
         }
@@ -306,7 +365,7 @@ código novo (o que vai entrar no lugar)
       console.log(`${COLORS.dim}[Modo Review - Auditando seu código pendente...]${COLORS.reset}`);
     } else if (lowerMsg.startsWith('/skill ')) {
       currentCommand = '/skill';
-      systemPrompt = `Você é um Especialista em IA. Crie a skill em um bloco JSON com 'skillName' e 'skillContent'.\nContexto do Projeto:\n${currentProjectContext}`;
+      systemPrompt = `Você é um Especialista em IA. Crie a skill em um bloco JSON com 'skillName' e 'skillContent'.`;
       finalUserMessage = rawUserMessage.substring(7).trim();
       console.log(`${COLORS.dim}[Modo Skill Ativado]${COLORS.reset}`);
     } else if (lowerMsg === '/debug') {
@@ -512,10 +571,15 @@ código novo (o que vai entrar no lugar)
       systemPrompt = `Você é um assistente de desenvolvimento prestativo.\n\nContexto do Projeto:\n${currentProjectContext}`;
     }
 
+    // Comandos que editam código recebem regras extras de patch/file/tools
+    const codeEditCommands = ['/code', '/test', '/debug'];
+    const needsCodeEdit = !currentCommand || codeEditCommands.includes(currentCommand);
+    const godModeRules = needsCodeEdit ? RULES_CORE + RULES_CODE_EDIT : RULES_CORE;
+
     const sysMsg = { role: "system", content: systemPrompt + godModeRules };
-    
+
     if (messages.length > 0 && messages[0].role === "system") {
-      if (currentCommand) messages[0] = sysMsg;
+      messages[0] = sysMsg;
     } else {
       messages.unshift(sysMsg);
     }
@@ -524,13 +588,29 @@ código novo (o que vai entrar no lugar)
 
     const MAX_HISTORY = parseInt(process.env.HIPERROUTER_MAX_HISTORY || "20", 10);
     if (messages.length > MAX_HISTORY + 1) {
-      // Memory Engine Integration
       const displacedCount = messages.length - (MAX_HISTORY + 1);
       const displacedMessages = messages.slice(1, 1 + displacedCount);
-      
+
       const summary = await compressHistory(displacedMessages, { port, apiKey, model });
-      
-      messages = [messages[0], ...messages.slice(-MAX_HISTORY)];
+
+      if (summary) {
+        messages = [
+          messages[0],
+          { role: "system", content: `[Memória da sessão anterior]:\n${summary}` },
+          ...messages.slice(-MAX_HISTORY),
+        ];
+      } else {
+        messages = [messages[0], ...messages.slice(-MAX_HISTORY)];
+      }
+    }
+
+    // --- Pre-flight: Token limit check ---
+    const totalTokensEst = estimateMessagesTokens(messages);
+    const ctxLimit = getContextLimit(model);
+    if (totalTokensEst > ctxLimit * 0.95) {
+      console.log(`${COLORS.red}❌ Contexto muito grande (~${totalTokensEst.toLocaleString()} tokens). Limite do modelo: ~${ctxLimit.toLocaleString()}.${COLORS.reset}`);
+      console.log(`${COLORS.yellow}Use /clear para resetar ou /history para revisar o que será descartado.${COLORS.reset}\n`);
+      continue;
     }
 
     // --- AGENT RUNTIME: Ciclo formal LLM ↔ Terminal ---

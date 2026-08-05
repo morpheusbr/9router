@@ -1,11 +1,12 @@
 const fs = require("fs");
 const path = require("path");
-const { askRecoveryLLM } = require("./recoveryClient");
-const { logAudit, createGitCheckpoint, rollbackGitCheckpoint } = require("./patchEngine");
+const { askRecoveryLLM } = require("../api/recoveryClient");
+const { logAudit, createGitCheckpoint, rollbackGitCheckpoint, validateSyntaxPostPatch } = require("./patchEngine");
 
 const CYAN = "\x1b[36m";
 const RED = "\x1b[31m";
 const GREEN = "\x1b[32m";
+const YELLOW = "\x1b[33m";
 const DIM = "\x1b[2m";
 const RESET = "\x1b[0m";
 
@@ -153,13 +154,12 @@ async function selfHeal(errorLog, context = "cli") {
     return false;
   }
 
-  // Try to read the source code around the first relevant frame
+  // Read source from multiple stack frames (up to 3)
   let sourceContext = "";
   for (const frame of frames.slice(0, 3)) {
-    const window = readSourceWindow(frame.file, frame.line, 40);
+    const window = readSourceWindow(frame.file, frame.line, 30);
     if (window) {
       sourceContext += `\n--- ${window.filePath} (around line ${frame.line}) ---\n${window.content}\n`;
-      break;
     }
   }
 
@@ -167,6 +167,15 @@ async function selfHeal(errorLog, context = "cli") {
     console.log(`${RED}✖ Arquivos de origem não encontrados no disco.${RESET}`);
     return false;
   }
+
+  // Load project context for better fixes
+  let projectContext = "";
+  try {
+    const agentsPath = path.join(process.cwd(), "AGENTS.md");
+    if (fs.existsSync(agentsPath)) {
+      projectContext = fs.readFileSync(agentsPath, "utf8").substring(0, 3000);
+    }
+  } catch {}
 
   createGitCheckpoint();
 
@@ -183,15 +192,17 @@ REGRAS:
 1. Analise o stack trace e o código fonte fornecido.
 2. Encontre o bug e gere a correção usando EXCLUSIVAMENTE a tag <patch> no formato abaixo:
 <patch path="caminho/do/arquivo.js">
----old---
+<<<<
 código antigo (exatamente como aparece no arquivo)
-+++new+++
+====
 código corrigido
+>>>>
 </patch>
 3. O código antigo DEVE existir EXATAMENTE no arquivo (copie da amostra fornecida).
 4. Se precisar reescrever o arquivo inteiro, use <file path="...">conteúdo completo</file>.
 5. Seja conciso. Corrija apenas o bug, não reescreva nada além do necessário.
-6. NÃO explique. Retorne APENAS os blocos <patch> ou <file>.`
+6. NÃO explique. Retorne APENAS os blocos <patch> ou <file>.
+${projectContext ? `\nCONTEXTO DO PROJETO:\n${projectContext}` : ''}`
         },
         {
           role: "user",
@@ -214,15 +225,38 @@ código corrigido
       for (const fb of fileBlocks) {
         console.log(`${DIM}  Reescrevendo ${fb.file}...${RESET}`);
         fs.writeFileSync(fb.file, fb.newCode, "utf8");
+
+        // Syntax validation
+        const validation = validateSyntaxPostPatch(fb.file);
+        if (!validation.valid) {
+          console.log(`${RED}  ✖ Arquivo reescrito com erro de sintaxe!${RESET}`);
+          console.log(`${DIM}  Erro: ${validation.error}${RESET}`);
+          logAudit("WOLVERINE_FILE_SYNTAX_ERROR", { file: fb.file, error: validation.error });
+          rollbackGitCheckpoint();
+          return false;
+        }
+
         logAudit("WOLVERINE_FILE_REWRITE", { file: fb.file });
       }
 
       // Apply patches
       let allPatched = true;
+      const patchedFiles = [];
       for (const p of patches) {
         const success = applyPatch(p);
         if (success) {
+          // Syntax validation
+          const validation = validateSyntaxPostPatch(p.file);
+          if (!validation.valid) {
+            console.log(`${YELLOW}  ⚠ Patch aplicado mas com erro de sintaxe: ${p.file}${RESET}`);
+            console.log(`${DIM}  Erro: ${validation.error}${RESET}`);
+            logAudit("WOLVERINE_PATCH_SYNTAX_ERROR", { file: p.file, error: validation.error });
+            allPatched = false;
+            continue;
+          }
+
           console.log(`${GREEN}  ✔ Patch aplicado: ${p.file}${RESET}`);
+          patchedFiles.push(p.file);
           logAudit("WOLVERINE_PATCH_APPLIED", { file: p.file });
         } else {
           console.log(`${RED}  ✖ Falha ao aplicar patch: ${p.file}${RESET}`);

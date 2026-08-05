@@ -1,8 +1,22 @@
 const fs = require("fs");
 const path = require("path");
-const { execSync } = require("child_process");
+const { execSync, spawn } = require("child_process");
 const { COLORS, confirmWithAuto } = require("../utils/input");
 const { renderDiffPreview } = require("../utils/display");
+
+/**
+ * Dispara graphify update em background (fire-and-forget).
+ * Não bloqueia a execução — ~3s economizados por patch.
+ */
+function graphifyUpdateAsync() {
+  try {
+    spawn("rtk", ["graphify", "update", "."], {
+      cwd: process.cwd(),
+      detached: true,
+      stdio: "ignore",
+    }).unref();
+  } catch (e) { /* ignore */ }
+}
 
 let lastGitCheckpoint = null;
 
@@ -156,130 +170,160 @@ async function processPatches(aiFullMessage, messages) {
   const patchMatches = [...aiFullMessage.matchAll(/<patch\s+path="([^"]+)">\s*<<<<\n([\s\S]*?)\n====\n([\s\S]*?)\n>>>>\s*<\/patch>/g)];
   let aiThinking = false;
 
-  for (const match of patchMatches) {
-    const filePath = match[1].trim();
-    const oldCode = match[2];
-    const newCode = match[3];
+  if (patchMatches.length === 0) return { aiThinking };
 
-    renderDiffPreview(oldCode, newCode, filePath);
+  // --- ATOMIC BATCH: Parse all patches first ---
+  const patches = patchMatches.map(m => ({
+    filePath: m[1].trim(),
+    oldCode: m[2],
+    newCode: m[3],
+    fullPath: path.resolve(process.cwd(), m[1].trim()),
+  }));
 
-    createGitCheckpoint();
-    logAudit("PATCH_APPLIED", { file: filePath });
+  // Security check: all paths must be inside project
+  for (const p of patches) {
+    if (!p.fullPath.startsWith(process.cwd() + path.sep)) {
+      console.log(`${COLORS.red}⛔ Patch bloqueado: '${p.filePath}' está fora do diretório do projeto.${COLORS.reset}\n`);
+      return { aiThinking: false };
+    }
+  }
 
-    const shouldWrite = await confirmWithAuto(`\n${COLORS.yellow}Aplicar Patch Cirúrgico no arquivo '${filePath}'?${COLORS.reset}`, "patch:" + filePath);
-    if (typeof shouldWrite === 'string') {
-      messages.push({ role: "assistant", content: aiFullMessage });
-      messages.push({ role: "user", content: `(O usuário rejeitou o patch no arquivo '${filePath}' e enviou este feedback: "${shouldWrite}")` });
-      aiThinking = true;
+  // Show all diffs and get confirmation
+  for (const p of patches) {
+    renderDiffPreview(p.oldCode, p.newCode, p.filePath);
+  }
+
+  if (patches.length > 1) {
+    console.log(`\n${COLORS.cyan}📦 Batch de ${patches.length} patches detectado. Todos serão aplicados atomicamente.${COLORS.reset}`);
+  }
+
+  const shouldWrite = patches.length === 1
+    ? await confirmWithAuto(`\n${COLORS.yellow}Aplicar Patch Cirúrgico no arquivo '${patches[0].filePath}'?${COLORS.reset}`, "patch:" + patches[0].filePath)
+    : await confirmWithAuto(`\n${COLORS.yellow}Aplicar ${patches.length} patches atomicamente? (Se qualquer um falhar, todos revertem)${COLORS.reset}`, "patch:batch");
+
+  if (typeof shouldWrite === 'string') {
+    messages.push({ role: "assistant", content: aiFullMessage });
+    messages.push({ role: "user", content: `(O usuário rejeitou os patches e enviou este feedback: "${shouldWrite}")` });
+    return { aiThinking: true };
+  }
+  if (!shouldWrite) return { aiThinking: false };
+
+  // --- Phase 1: Create backups for ALL files ---
+  createGitCheckpoint();
+  const backups = new Map(); // fullPath -> backupPath
+  const originalContents = new Map(); // fullPath -> original content
+
+  for (const p of patches) {
+    try {
+      const content = fs.readFileSync(p.fullPath, "utf-8");
+      originalContents.set(p.fullPath, content);
+      const backupPath = createRotatingBackup(p.fullPath);
+      backups.set(p.fullPath, backupPath);
+    } catch (e) {
+      console.log(`${COLORS.red}❌ Erro ao fazer backup de '${p.filePath}': ${e.message}${COLORS.reset}`);
+      // Rollback already-created backups
+      for (const [fp, bak] of backups) {
+        try { fs.copyFileSync(bak, fp); } catch {}
+      }
+      return { aiThinking: false };
+    }
+  }
+
+  // --- Phase 2: Apply all patches ---
+  const appliedFiles = [];
+  let failedPatch = null;
+
+  for (const p of patches) {
+    let content = originalContents.get(p.fullPath);
+    let matched = false;
+
+    if (content.includes(p.oldCode)) {
+      // Exact match
+      const occurrences = countOccurrences(content, p.oldCode);
+      if (occurrences > 1) {
+        console.log(`\n${COLORS.yellow}⚠️  '${p.filePath}': código antigo aparece ${occurrences}x. Aplicando na 1ª ocorrência.${COLORS.reset}`);
+        const firstPos = content.indexOf(p.oldCode);
+        showMatchContext(content, p.oldCode, firstPos, 2);
+      }
+      content = content.replace(p.oldCode, p.newCode);
+      matched = true;
+    } else {
+      // Fuzzy match
+      const escapeRegex = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      let fuzzyPattern = escapeRegex(p.oldCode).replace(/\s+/g, '\\s+');
+      fuzzyPattern = fuzzyPattern.replace(/^\\s\+/, '\\s*').replace(/\\s\+$/, '\\s*');
+      const regex = new RegExp(fuzzyPattern);
+      if (regex.test(content)) {
+        content = content.replace(regex, p.newCode);
+        matched = true;
+        console.log(`${COLORS.dim}  ✅ '${p.filePath}': Fuzzy match${COLORS.reset}`);
+      }
+    }
+
+    if (!matched) {
+      failedPatch = p;
+      console.log(`${COLORS.red}  ❌ '${p.filePath}': código antigo não encontrado${COLORS.reset}`);
       break;
-    } else if (shouldWrite) {
-      try {
-        const fullPath = path.resolve(process.cwd(), filePath);
-        if (!fullPath.startsWith(process.cwd() + path.sep)) {
-          console.log(`${COLORS.red}⛔ Patch bloqueado: '${filePath}' está fora do diretório do projeto.${COLORS.reset}\n`);
-          continue;
-        }
-        let content = fs.readFileSync(fullPath, "utf-8");
-        if (content.includes(oldCode)) {
-          // --- FIX #1: Multi-Match Detection ---
-          const occurrences = countOccurrences(content, oldCode);
-          if (occurrences > 1) {
-            console.log(`\n${COLORS.yellow}⚠️  ATENÇÃO: O código antigo aparece ${occurrences}x no arquivo!${COLORS.reset}`);
-            console.log(`${COLORS.dim}O patch será aplicado apenas na PRIMEIRA ocorrência. Contexto:${COLORS.reset}`);
-            const firstPos = content.indexOf(oldCode);
-            showMatchContext(content, oldCode, firstPos, 2);
-            console.log(`${COLORS.dim}Se não for o trecho correto, rejeite (n) e peça à IA para incluir mais contexto.${COLORS.reset}\n`);
-          }
+    }
 
-          // --- FIX #2: Backup Rotativo ---
-          const backupPath = createRotatingBackup(fullPath);
-          content = content.replace(oldCode, newCode);
-          fs.writeFileSync(fullPath, content);
+    fs.writeFileSync(p.fullPath, content);
+    appliedFiles.push(p.fullPath);
+    logAudit("PATCH_APPLIED", { file: p.filePath, method: "atomic-batch" });
+  }
 
-          // --- FIX #3: Validação Pós-Patch ---
-          const validation = validateSyntaxPostPatch(fullPath);
-          if (!validation.valid) {
-            // Auto-rollback: restaura o backup
-            fs.copyFileSync(backupPath, fullPath);
-            console.log(`${COLORS.red}❌ [Auto-Guardrail] Patch gerou erro de sintaxe! Revertendo automaticamente.${COLORS.reset}`);
-            console.log(`${COLORS.dim}Erro: ${validation.error}${COLORS.reset}\n`);
-            logAudit("PATCH_SYNTAX_ROLLBACK", { file: filePath, error: validation.error });
-            messages.push({
-              role: 'system',
-              content: `⚠️ ALERTA: O patch em '${filePath}' foi REVERTIDO porque gerou erro de sintaxe:\n\`\`\`\n${validation.error}\n\`\`\`\nRevise o código e gere um patch correto.`
-            });
-            aiThinking = true;
-            break;
-          }
-
-          console.log(`${COLORS.green}✅ Patch cirúrgico aplicado com Match Exato! ${COLORS.dim}(backup: ${path.basename(backupPath)} — use /undo para reverter)${COLORS.reset}\n`);
-          try { execSync("rtk graphify update .", { cwd: process.cwd(), stdio: "ignore" }); } catch(e) {}
-        } else {
-          // --- FUZZY MATCHING (Whitespace-Agnostic) ---
-          console.log(`${COLORS.yellow}⚠️ Match exato falhou. Tentando Fuzzy Match (ignorando quebras de linha e espaços)...${COLORS.reset}`);
-          const escapeRegex = (string) => string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-          let fuzzyPattern = escapeRegex(oldCode).replace(/\s+/g, '\\s+');
-          fuzzyPattern = fuzzyPattern.replace(/^\\s\+/, '\\s*').replace(/\\s\+$/, '\\s*');
-          
-          const regex = new RegExp(fuzzyPattern);
-          const fuzzyMatch = content.match(regex);
-          
-          if (fuzzyMatch) {
-            // --- FIX #4: Fuzzy Match Visual Confirmation ---
-            const fuzzyPos = content.indexOf(fuzzyMatch[0]);
-            const fuzzyLineNum = content.substring(0, fuzzyPos).split('\n').length;
-            console.log(`\n${COLORS.yellow}📍 Fuzzy Match encontrado na linha ~${fuzzyLineNum}:${COLORS.reset}`);
-            showMatchContext(content, fuzzyMatch[0], fuzzyPos, 2);
-            console.log();
-
-            const backupPath = createRotatingBackup(fullPath);
-            content = content.replace(regex, newCode);
-            fs.writeFileSync(fullPath, content);
-
-            // Validação pós-patch
-            const validation = validateSyntaxPostPatch(fullPath);
-            if (!validation.valid) {
-              fs.copyFileSync(backupPath, fullPath);
-              console.log(`${COLORS.red}❌ [Auto-Guardrail] Fuzzy patch gerou erro de sintaxe! Revertendo.${COLORS.reset}`);
-              console.log(`${COLORS.dim}Erro: ${validation.error}${COLORS.reset}\n`);
-              logAudit("PATCH_SYNTAX_ROLLBACK", { file: filePath, error: validation.error, method: "fuzzy" });
-              messages.push({
-                role: 'system',
-                content: `⚠️ ALERTA: O patch fuzzy em '${filePath}' foi REVERTIDO porque gerou erro de sintaxe:\n\`\`\`\n${validation.error}\n\`\`\`\nRevise o código e gere um patch correto.`
-              });
-              aiThinking = true;
-              break;
-            }
-
-            console.log(`${COLORS.green}✅ Patch cirúrgico salvo via Fuzzy Match! ${COLORS.dim}(backup: ${path.basename(backupPath)} — use /undo para reverter)${COLORS.reset}\n`);
-            try { execSync("rtk graphify update .", { cwd: process.cwd(), stdio: "ignore" }); } catch(e) {}
-          } else {
-            console.log(`${COLORS.red}⛔ Falha Crítica: O código 'antigo' não foi encontrado nem com Fuzzy Match. A IA gerou um bloco que não existe no arquivo.${COLORS.reset}`);
-            // Self-Healing: send file content back to LLM so it can rewrite the patch
-            const snippet = content.length > 6000 ? content.slice(-6000) : content;
-            const snippetPrefix = content.length > 6000 ? "...[trecho anterior omitido]...\n" : "";
-            messages.push({
-              role: "system",
-              content: `⚠️ AUTO-HEAL (patch falhou): O patch no arquivo '${filePath}' não pôde ser aplicado — o código antigo que você forneceu não existe no arquivo atual.\n\nConteúdo atual do arquivo (últimas ~200 linhas):\n\`\`\`\n${snippetPrefix}${snippet}\n\`\`\`\n\nAnalise o conteúdo acima, gere um novo patch correto com o bloco 'antigo' que REALMENTE existe no arquivo, e tente novamente.`
-            });
-            logAudit("PATCH_FUZZY_FAILED", { file: filePath });
-            aiThinking = true;
-            break;
-          }
-        }
-      } catch (e) {
-        console.log(`${COLORS.red}Erro: ${e.message}${COLORS.reset}`);
-        messages.push({
-          role: "system",
-          content: `⚠️ AUTO-HEAL (erro ao aplicar patch): Patch no arquivo '${filePath}' falhou com erro: ${e.message}\nCorrija o problema e tente novamente.`
-        });
-        aiThinking = true;
+  // --- Phase 3: Validate ALL applied patches ---
+  let validationFailed = null;
+  if (!failedPatch) {
+    for (const fp of appliedFiles) {
+      const validation = validateSyntaxPostPatch(fp);
+      if (!validation.valid) {
+        validationFailed = { file: fp, error: validation.error };
         break;
       }
     }
   }
 
-  return { aiThinking };
+  // --- Phase 4: Rollback ALL if any failed ---
+  if (failedPatch || validationFailed) {
+    console.log(`\n${COLORS.red}❌ PATCH ATÔMICO FALHOU — Revertendo TODOS os ${appliedFiles.length} patches...${COLORS.reset}`);
+
+    for (const [fp, bak] of backups) {
+      try { fs.copyFileSync(bak, fp); } catch {}
+    }
+
+    if (validationFailed) {
+      console.log(`${COLORS.red}Erro de sintaxe em '${validationFailed.file}':${COLORS.reset}`);
+      console.log(`${COLORS.dim}${validationFailed.error}${COLORS.reset}\n`);
+      logAudit("PATCH_ATOMIC_ROLLBACK", { reason: "syntax_error", file: validationFailed.file });
+      messages.push({
+        role: 'system',
+        content: `⚠️ ALERTA: Batch de ${patches.length} patches foi REVERTIDO porque '${validationFailed.file}' gerou erro de sintaxe:\n\`\`\`\n${validationFailed.error}\n\`\`\`\nRevise o código e gere patches corretos.`
+      });
+    } else {
+      const snippet = originalContents.get(failedPatch.fullPath) || "";
+      const lastLines = snippet.length > 6000 ? snippet.slice(-6000) : snippet;
+      const prefix = snippet.length > 6000 ? "...[trecho anterior omitido]...\n" : "";
+      logAudit("PATCH_ATOMIC_ROLLBACK", { reason: "match_failed", file: failedPatch.filePath });
+      messages.push({
+        role: "system",
+        content: `⚠️ AUTO-HEAL (patch falhou): O patch no arquivo '${failedPatch.filePath}' não pôde ser aplicado — o código antigo não existe no arquivo.\n\nConteúdo atual:\n\`\`\`\n${prefix}${lastLines}\n\`\`\`\nGere um novo patch correto.`
+      });
+    }
+
+    return { aiThinking: true };
+  }
+
+  // --- Success ---
+  for (const p of patches) {
+    console.log(`${COLORS.green}✅ Patch aplicado: ${p.filePath} ${COLORS.dim}(backup: ${path.basename(backups.get(p.fullPath))})${COLORS.reset}`);
+  }
+  if (patches.length > 1) {
+    console.log(`${COLORS.green}📦 ${patches.length} patches aplicados atomicamente com sucesso!${COLORS.reset}`);
+  }
+  console.log();
+  graphifyUpdateAsync();
+
+  return { aiThinking: false };
 }
 
 async function processNewFiles(aiFullMessage, messages) {
@@ -352,7 +396,7 @@ async function processNewFiles(aiFullMessage, messages) {
         }
 
         console.log(`${COLORS.green}✅ Arquivo ${fileExists ? 'sobrescrito' : 'criado'}!${COLORS.reset}\n`);
-        try { execSync("rtk graphify update .", { cwd: process.cwd(), stdio: "ignore" }); } catch (err) {}
+        graphifyUpdateAsync();
       } catch (err) {
         console.log(`${COLORS.red}Erro ao salvar: ${err.message}${COLORS.reset}\n`);
       }

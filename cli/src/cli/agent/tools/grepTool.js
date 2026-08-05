@@ -19,9 +19,8 @@ module.exports = {
    * @returns {Array<{term: string}>}
    */
   extract(aiFullMessage) {
-    const match = aiFullMessage.match(/<grep\s+search="([^"]+)"\s*\/>/);
-    if (!match) return [];
-    return [{ term: match[1] }];
+    const matches = [...aiFullMessage.matchAll(/<grep\s+search="([^"]+)"\s*\/>/g)];
+    return matches.map(m => ({ term: m[1] }));
   },
 
   /**
