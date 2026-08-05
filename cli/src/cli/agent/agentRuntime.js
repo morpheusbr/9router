@@ -229,7 +229,7 @@ class AgentRuntime extends EventEmitter {
         "x-hiperrouter-cli": "true"
       },
       body: JSON.stringify({ model: this.model, messages, stream: true }),
-      signal: AbortSignal.timeout(300000) // 5 min safety timeout
+      signal: AbortSignal.timeout(600000) // 10 min safety timeout
     });
 
     if (response.status === 429) {

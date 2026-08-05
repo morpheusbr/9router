@@ -77,7 +77,7 @@ fi
 systemctl reload nginx || service nginx reload
 
 echo "🧠 Atualizando Knowledge Graph (Graphify)..."
-graphify update . || echo "⚠️ Graphify não atualizado."
+graphify update --force . || echo "⚠️ Graphify não atualizado."
 
 echo "--------------------------------------------------------"
 echo "🎉 Deploy Seguro finalizado! Sistema e banco de dados preservados na pasta HiperRouter."

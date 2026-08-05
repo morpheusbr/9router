@@ -360,6 +360,30 @@ async function startChatUI(port) {
       let gitDiff = "";
       try { gitDiff = execSync("rtk git diff HEAD", { encoding: "utf8" }); } catch(e) {}
       if (!gitDiff.trim()) { console.log(`${COLORS.red}Nenhum diff encontrado.${COLORS.reset}\n`); continue; }
+
+      // Show colored diff summary
+      const diffLines = gitDiff.split('\n');
+      const stats = { added: 0, removed: 0, files: new Set() };
+      for (const line of diffLines) {
+        if (line.startsWith('+') && !line.startsWith('+++')) stats.added++;
+        if (line.startsWith('-') && !line.startsWith('---')) stats.removed++;
+        if (line.startsWith('diff --git')) {
+          const match = line.match(/b\/(.+)$/);
+          if (match) stats.files.add(match[1]);
+        }
+      }
+      console.log(`\n${COLORS.cyan}📋 Diff: ${stats.files.size} arquivo(s) | ${COLORS.green}+${stats.added} ${COLORS.red}-${stats.removed}${COLORS.reset}`);
+      // Show colored diff preview (first 30 lines)
+      const preview = diffLines.slice(0, 30);
+      for (const line of preview) {
+        if (line.startsWith('+') && !line.startsWith('+++')) console.log(`${COLORS.green}${line}${COLORS.reset}`);
+        else if (line.startsWith('-') && !line.startsWith('---')) console.log(`${COLORS.red}${line}${COLORS.reset}`);
+        else if (line.startsWith('@@')) console.log(`${COLORS.cyan}${line}${COLORS.reset}`);
+        else console.log(`${COLORS.dim}${line}${COLORS.reset}`);
+      }
+      if (diffLines.length > 30) console.log(`${COLORS.dim}... +${diffLines.length - 30} linhas${COLORS.reset}`);
+      console.log();
+
       systemPrompt = `Você é um Subagente de Segurança e QA Sênior. Revise o git diff (uncommitted) buscando bugs críticos, erros de Zod, SSRF ou arquitetura frágil conforme as Regras Globais.\n\nContexto do Projeto:\n${currentProjectContext}`;
       finalUserMessage = `Revise este diff não commitado e recomende melhorias antes do commit:\n\`\`\`diff\n${gitDiff.substring(0, 50000)}\n\`\`\``;
       console.log(`${COLORS.dim}[Modo Review - Auditando seu código pendente...]${COLORS.reset}`);
@@ -610,29 +634,36 @@ async function startChatUI(port) {
     messages.push({ role: "user", content: finalUserMessage + appendedContext });
 
     const MAX_HISTORY = parseInt(process.env.HIPERROUTER_MAX_HISTORY || "20", 10);
-    if (messages.length > MAX_HISTORY + 1) {
-      const displacedCount = messages.length - (MAX_HISTORY + 1);
+    const currentTokens = estimateMessagesTokens(messages);
+    const ctxLimit = getContextLimit(model);
+
+    // Compress when hitting message limit OR when context > 60%
+    if (messages.length > MAX_HISTORY + 1 || (messages.length > 4 && currentTokens > ctxLimit * 0.6)) {
+      const displacedCount = messages.length > MAX_HISTORY + 1
+        ? messages.length - (MAX_HISTORY + 1)
+        : Math.max(1, Math.floor((messages.length - 3) / 2)); // Remove half of non-recent messages
       const displacedMessages = messages.slice(1, 1 + displacedCount);
 
-      const summary = await compressHistory(displacedMessages, { port, apiKey, model });
+      if (displacedMessages.length > 0) {
+        const summary = await compressHistory(displacedMessages, { port, apiKey, model });
 
-      if (summary) {
-        messages = [
-          messages[0],
-          { role: "system", content: `[Memória da sessão anterior]:\n${summary}` },
-          ...messages.slice(-MAX_HISTORY),
-        ];
-      } else {
-        messages = [messages[0], ...messages.slice(-MAX_HISTORY)];
+        if (summary) {
+          messages = [
+            messages[0],
+            { role: "system", content: `[Memória da sessão anterior]:\n${summary}` },
+            ...messages.slice(-Math.min(MAX_HISTORY, messages.length - displacedCount)),
+          ];
+        } else {
+          messages = [messages[0], ...messages.slice(-MAX_HISTORY)];
+        }
       }
     }
 
     // --- Pre-flight: Token limit check ---
     const totalTokensEst = estimateMessagesTokens(messages);
-    const ctxLimit = getContextLimit(model);
-    if (totalTokensEst > ctxLimit * 0.95) {
-      console.log(`${COLORS.red}❌ Contexto muito grande (~${totalTokensEst.toLocaleString()} tokens). Limite do modelo: ~${ctxLimit.toLocaleString()}.${COLORS.reset}`);
-      console.log(`${COLORS.yellow}Use /clear para resetar ou /history para revisar o que será descartado.${COLORS.reset}\n`);
+    if (totalTokensEst > ctxLimit * 0.85) {
+      console.log(`${COLORS.red}❌ Contexto muito grande (~${totalTokensEst.toLocaleString()} tokens). Limite: ~${ctxLimit.toLocaleString()}.${COLORS.reset}`);
+      console.log(`${COLORS.yellow}Use /clear para resetar ou aguarde compressão automática.${COLORS.reset}\n`);
       continue;
     }
 
@@ -649,6 +680,9 @@ async function startChatUI(port) {
     let runtimeSpinner = null;
     let runtimeSpinnerFrame = 0;
     const frames = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
+    let inCodeBlock = false;
+    let codeBlockBuffer = "";
+    let codeBlockLang = "";
 
     runtime.on("stream_start", () => {
       runtimeSpinnerFrame = 0;
@@ -663,7 +697,49 @@ async function startChatUI(port) {
         runtimeSpinner = null;
         process.stdout.write(`\r${COLORS.cyan}IA: ${COLORS.reset}\x1b[K`);
       }
-      process.stdout.write(text);
+
+      // Track code blocks for syntax highlighting
+      let remaining = text;
+      while (remaining.length > 0) {
+        if (!inCodeBlock) {
+          const fenceStart = remaining.indexOf('```');
+          if (fenceStart !== -1) {
+            // Print text before fence
+            process.stdout.write(remaining.substring(0, fenceStart));
+            const afterFence = remaining.substring(fenceStart + 3);
+            const newlineIdx = afterFence.indexOf('\n');
+            if (newlineIdx !== -1) {
+              codeBlockLang = afterFence.substring(0, newlineIdx).trim();
+              inCodeBlock = true;
+              codeBlockBuffer = "";
+              process.stdout.write(`${COLORS.dim}\`\`\`${codeBlockLang}${COLORS.reset}\n`);
+              remaining = afterFence.substring(newlineIdx + 1);
+            } else {
+              process.stdout.write(remaining.substring(fenceStart));
+              remaining = "";
+            }
+          } else {
+            process.stdout.write(remaining);
+            remaining = "";
+          }
+        } else {
+          const fenceEnd = remaining.indexOf('```');
+          if (fenceEnd !== -1) {
+            codeBlockBuffer += remaining.substring(0, fenceEnd);
+            // Highlight and print the code block
+            const { highlightSyntax } = require("./utils/display");
+            console.log(highlightSyntax(codeBlockBuffer));
+            process.stdout.write(`${COLORS.dim}\`\`\`${COLORS.reset}\n`);
+            inCodeBlock = false;
+            codeBlockBuffer = "";
+            codeBlockLang = "";
+            remaining = remaining.substring(fenceEnd + 3);
+          } else {
+            codeBlockBuffer += remaining;
+            remaining = "";
+          }
+        }
+      }
     });
 
     runtime.on("tool_call_start", () => {

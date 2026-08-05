@@ -233,6 +233,60 @@ Usage: hiperrouter doctor [--fix] [--port <n>]
     console.log(`🌐 LAN IP: ${lanIp || "n/a"} (bind local: ${host})`);
   }
 
+  // 10. .gitignore integrity
+  const gitignorePath = path.join(process.cwd(), ".gitignore");
+  if (fs.existsSync(gitignorePath)) {
+    const gi = fs.readFileSync(gitignorePath, "utf8");
+    const required = [".env*", ".HiperRouter/", "node_modules/", "*.sqlite", "*.key"];
+    const missing = required.filter(r => !gi.includes(r));
+    if (missing.length > 0) {
+      console.log(`⚠️  .gitignore: faltam entradas sensíveis: ${missing.join(", ")}`);
+      warnCount++;
+      if (fix) {
+        fs.appendFileSync(gitignorePath, `\n# Auto-added by doctor\n${missing.join("\n")}\n`);
+        console.log(`   🔧 Entradas adicionadas ao .gitignore`);
+        fixedCount++;
+      }
+    } else {
+      console.log(`✅ .gitignore: entradas sensíveis OK`);
+    }
+  }
+
+  // 11. Audit log size
+  const auditPath = path.join(dataDir, "audit.log");
+  if (fs.existsSync(auditPath)) {
+    const auditSize = fs.statSync(auditPath).size;
+    if (auditSize > 5 * 1024 * 1024) {
+      console.log(`⚠️  Audit log grande: ${formatBytes(auditSize)}`);
+      warnCount++;
+      if (fix) {
+        // Keep last 1000 lines
+        try {
+          const lines = fs.readFileSync(auditPath, "utf8").split("\n").filter(Boolean);
+          const kept = lines.slice(-1000);
+          fs.writeFileSync(auditPath, kept.join("\n") + "\n");
+          console.log(`   🔧 Audit log compactado: ${lines.length} → ${kept.length} entradas`);
+          fixedCount++;
+        } catch {}
+      }
+    } else {
+      console.log(`✅ Audit log: ${formatBytes(auditSize)}`);
+    }
+  }
+
+  // 12. Chat history cleanup
+  const historyPattern = path.join(dataDir, "chat_history_*.json");
+  try {
+    const { execSync } = require("child_process");
+    const historyFiles = execSync(`ls ${historyPattern} 2>/dev/null`, { encoding: "utf8" }).trim().split("\n").filter(Boolean);
+    if (historyFiles.length > 10) {
+      console.log(`⚠️  ${historyFiles.length} arquivos de histórico (considere /clear para limpar)`);
+      warnCount++;
+    } else if (historyFiles.length > 0) {
+      console.log(`✅ Chat history: ${historyFiles.length} sessão(ões)`);
+    }
+  } catch {}
+
   console.log(`\n=============================================`);
   if (fix && fixedCount > 0) {
     console.log(`🔧 Correções aplicadas: ${fixedCount}`);

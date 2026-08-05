@@ -23,6 +23,8 @@ function showHelp() {
     { cmd: "/status", desc: "Status API: Verifica se o servidor proxy está respondendo (ping)." },
     { cmd: "/undo", desc: "Restaurar Backup: Reverte o arquivo para o backup .bak do último patch." },
     { cmd: "/save [arquivo]", desc: "Salvar Chat: Exporta toda a conversa para um arquivo Markdown." },
+    { cmd: "/load <arquivo>", desc: "Carregar Sessão: Restaura uma conversa salva anteriormente." },
+    { cmd: "/sessions", desc: "Listar Sessões: Mostra todas as sessões salvas no diretório atual." },
     { cmd: "/copy", desc: "Copiar Resposta: Copia toda a última resposta da IA para o clipboard. (Alias: /c)" },
     { cmd: "/copy-code", desc: "Copiar Código: Copia apenas o último bloco de código para o clipboard. (Alias: /cc)" },
     { cmd: "/paste", desc: "Modo Multilinhas: Buffer para colar prompts ou logs extensos." },
@@ -164,24 +166,52 @@ async function handleSlashCommand(lowerMsg, rawUserMessage, state) {
           try {
             const st = fs.statSync(fp);
             if (st.isDirectory() && !f.startsWith('.') && f !== 'node_modules') findBaks(fp, depth + 1);
-            else if (/\.bak(\.\d+)?$/.test(f)) baks.push({ fp, mtime: st.mtimeMs });
+            else if (/\.bak(\.\d+)?$/.test(f)) baks.push({ fp, mtime: st.mtimeMs, size: st.size });
           } catch(e) {}
         }
       };
       findBaks(process.cwd());
     } catch(e) {}
+
     if (baks.length === 0) {
       console.log(`${COLORS.dim}Nenhum arquivo .bak encontrado para restaurar.${COLORS.reset}\n`);
     } else {
       baks.sort((a, b) => b.mtime - a.mtime);
-      const newest = baks[0].fp;
-      const original = newest.replace(/\.bak(\.\d+)?$/, '');
-      const { confirm } = require('../utils/input');
-      const ok = await confirm(`\n${COLORS.yellow}Restaurar '${path.basename(original)}' a partir do backup '${path.basename(newest)}'?${COLORS.reset}`);
-      if (ok) {
-        fs.copyFileSync(newest, original);
-        fs.unlinkSync(newest);
-        console.log(`${COLORS.green}✅ Arquivo restaurado com sucesso.${COLORS.reset}\n`);
+      const { selectMenu, confirm } = require('../utils/input');
+
+      if (baks.length === 1) {
+        // Single backup - confirm directly
+        const bak = baks[0];
+        const original = bak.fp.replace(/\.bak(\.\d+)?$/, '');
+        const age = Math.round((Date.now() - bak.mtime) / 60000);
+        const ok = await confirm(`\n${COLORS.yellow}Restaurar '${path.basename(original)}' (${age}min atrás)?${COLORS.reset}`);
+        if (ok) {
+          fs.copyFileSync(bak.fp, original);
+          fs.unlinkSync(bak.fp);
+          console.log(`${COLORS.green}✅ '${path.basename(original)}' restaurado com sucesso.${COLORS.reset}\n`);
+        }
+      } else {
+        // Multiple backups - show selection menu
+        console.log(`\n📦 ${COLORS.bright}${baks.length} backup(s) encontrado(s):${COLORS.reset}\n`);
+        const items = baks.slice(0, 15).map(bak => {
+          const original = bak.fp.replace(/\.bak(\.\d+)?$/, '');
+          const relPath = path.relative(process.cwd(), original);
+          const age = Math.round((Date.now() - bak.mtime) / 60000);
+          const sizeKB = (bak.size / 1024).toFixed(1);
+          const ageStr = age < 60 ? `${age}min` : age < 1440 ? `${Math.round(age/60)}h` : `${Math.round(age/1440)}d`;
+          return { label: `${relPath} (${sizeKB}KB, ${ageStr} atrás)`, bak, original };
+        });
+
+        const idx = await selectMenu("Selecione o backup para restaurar", items.map(i => i.label), 0, "Escolha qual arquivo restaurar:");
+        if (idx >= 0 && idx < items.length) {
+          const selected = items[idx];
+          const ok = await confirm(`\n${COLORS.yellow}Restaurar '${path.basename(selected.original)}'?${COLORS.reset}`);
+          if (ok) {
+            fs.copyFileSync(selected.bak.fp, selected.original);
+            fs.unlinkSync(selected.bak.fp);
+            console.log(`${COLORS.green}✅ '${path.basename(selected.original)}' restaurado com sucesso.${COLORS.reset}\n`);
+          }
+        }
       }
     }
     return true;
@@ -207,6 +237,65 @@ async function handleSlashCommand(lowerMsg, rawUserMessage, state) {
       } catch(e) {
         console.log(`${COLORS.red}Erro ao salvar: ${e.message}${COLORS.reset}\n`);
       }
+    }
+    return true;
+  }
+
+  if (lowerMsg.startsWith('/load')) {
+    const arg = rawUserMessage.substring(5).trim();
+    if (!arg) {
+      console.log(`${COLORS.red}Uso: /load <arquivo.md>${COLORS.reset}`);
+      console.log(`${COLORS.dim}Use /sessions para ver sessões salvas.${COLORS.reset}\n`);
+      return true;
+    }
+    const fullPath = path.resolve(process.cwd(), arg);
+    if (!fs.existsSync(fullPath)) {
+      console.log(`${COLORS.red}Arquivo não encontrado: ${arg}${COLORS.reset}\n`);
+      return true;
+    }
+    try {
+      const content = fs.readFileSync(fullPath, "utf8");
+      // Parse markdown back to messages
+      const sections = content.split(/^## /m).filter(Boolean);
+      const loaded = [];
+      for (const section of sections) {
+        const headerMatch = section.match(/^(\p{Emoji}.*?)\n\n([\s\S]*?)(?=\n---|\n## |$)/u);
+        if (headerMatch) {
+          const isUser = headerMatch[1].includes('Você') || headerMatch[1].includes('You');
+          loaded.push({
+            role: isUser ? "user" : "assistant",
+            content: headerMatch[2].trim()
+          });
+        }
+      }
+      if (loaded.length > 0) {
+        // Replace messages in state
+        state.messages = loaded;
+        console.log(`${COLORS.green}✅ Sessão carregada: ${loaded.length} mensagens de '${arg}'${COLORS.reset}\n`);
+      } else {
+        console.log(`${COLORS.yellow}⚠️ Nenhuma mensagem encontrada no formato esperado.${COLORS.reset}\n`);
+      }
+    } catch(e) {
+      console.log(`${COLORS.red}Erro ao carregar: ${e.message}${COLORS.reset}\n`);
+    }
+    return true;
+  }
+
+  if (lowerMsg === '/sessions') {
+    const cwd = process.cwd();
+    const files = fs.readdirSync(cwd).filter(f => f.startsWith('chat-') && f.endsWith('.md'));
+    if (files.length === 0) {
+      console.log(`${COLORS.dim}Nenhuma sessão salva encontrada no diretório atual.${COLORS.reset}`);
+      console.log(`${COLORS.dim}Use /save para salvar a sessão atual.${COLORS.reset}\n`);
+    } else {
+      console.log(`\n📁 ${COLORS.bright}Sessões Salvas:${COLORS.reset}\n`);
+      for (const f of files.sort().reverse()) {
+        const stats = fs.statSync(path.join(cwd, f));
+        const size = (stats.size / 1024).toFixed(1);
+        const date = stats.mtime.toLocaleDateString('pt-BR');
+        console.log(`  ${COLORS.green}•${COLORS.reset} ${f} ${COLORS.dim}(${size}KB, ${date})${COLORS.reset}`);
+      }
+      console.log(`\n${COLORS.dim}Use /load <arquivo> para restaurar.${COLORS.reset}\n`);
     }
     return true;
   }
