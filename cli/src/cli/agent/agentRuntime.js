@@ -88,7 +88,7 @@ class AgentRuntime extends EventEmitter {
 
     let aiThinking = true;
     let rateLimitRetries = 0;
-    const MAX_RATE_LIMIT_RETRIES = 3;
+    const MAX_RATE_LIMIT_RETRIES = 5;
     let finalMessage = "";
 
     while (aiThinking) {
@@ -110,7 +110,10 @@ class AgentRuntime extends EventEmitter {
             messages.pop();
             break;
           }
-          const waitTime = Math.min(isNaN(retryAfter) ? 15 : retryAfter, 15);
+          // Exponential backoff with jitter: 5s, 10s, 20s, 40s + random 0-3s
+          const baseDelay = Math.min(5 * Math.pow(2, rateLimitRetries - 1), 60);
+          const jitter = Math.floor(Math.random() * 3);
+          const waitTime = Math.min(isNaN(retryAfter) ? baseDelay + jitter : retryAfter, 60);
           console.log(`\n${COLORS.yellow}⚠️  Rate limit (429) no modelo '${this.model}' — aguardando ${waitTime}s... (tentativa ${rateLimitRetries}/${MAX_RATE_LIMIT_RETRIES})${COLORS.reset}`);
           await new Promise(r => setTimeout(r, waitTime * 1000));
           // Pop duplicata

@@ -12,6 +12,7 @@ function showHelp() {
     { cmd: "/review", desc: "Auditoria de Código: Revisa o git diff buscando bugs, Zod e SSRF." },
     { cmd: "/skill <instruções>", desc: "Gerador de Skill: Cria uma nova skill personalizada no projeto." },
     { cmd: "/debug", desc: "Modo Debug: Captura os últimos erros PM2 (hiperrouter) para correção." },
+    { cmd: "/explain <arquivo>", desc: "Explicar Código: Explica o arquivo de forma detalhada sem alterá-lo." },
     { cmd: "/read <arquivo>", desc: "Leitor: Injeta o conteúdo de um arquivo local na conversa." },
     { cmd: "/model", desc: "Trocar Modelo: Abre menu interativo com filtro de busca." },
     { cmd: "/fav", desc: "Favoritar Modelo: Adiciona/remove modelo atual dos favoritos." },

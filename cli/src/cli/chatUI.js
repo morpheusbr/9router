@@ -375,6 +375,29 @@ async function startChatUI(port) {
       try { errorLogs = execSync("rtk pm2 logs hiperrouter --lines 50 --nostream --err", { encoding: "utf8" }); } catch(e) { errorLogs = "Erro ao buscar logs PM2."; }
       finalUserMessage = `Logs de erro PM2:\n\`\`\`\n${errorLogs}\n\`\`\`\n${rawUserMessage}`;
       console.log(`${COLORS.dim}[Modo Debug - Capturando PM2 logs...]${COLORS.reset}`);
+    } else if (lowerMsg.startsWith('/explain ')) {
+      currentCommand = '/explain';
+      const filePath = rawUserMessage.substring(9).trim();
+      const fullPath = path.resolve(process.cwd(), filePath);
+      if (fs.existsSync(fullPath)) {
+        const fileSize = fs.statSync(fullPath).size;
+        if (fileSize > 102400) {
+          console.log(`${COLORS.yellow}⚠️ Arquivo muito grande (${(fileSize/1024).toFixed(0)}KB). Lendo primeiras 100KB...${COLORS.reset}`);
+        }
+        const fileContent = fs.readFileSync(fullPath, "utf-8").substring(0, 102400);
+        systemPrompt = `Você é um Especialista em Documentação Técnica. Sua tarefa é explicar o código fornecido de forma clara e concisa.
+- Explique a propósito e responsabilidades do arquivo
+- Liste as principais funções/classes e o que fazem
+- Identifique padrões de design usados
+- Aponte possíveis problemas ou pontos de atenção
+- NÃO reescreva o código, apenas explique
+- Seja conciso e direto`;
+        finalUserMessage = `Explique este arquivo (${filePath}):\n\`\`\`\n${fileContent}\n\`\`\``;
+        console.log(`${COLORS.dim}[Modo Explain: Analisando '${filePath}'...]${COLORS.reset}`);
+      } else {
+        console.log(`${COLORS.red}Arquivo não encontrado: ${filePath}${COLORS.reset}\n`);
+        continue;
+      }
     } else if (lowerMsg === '/model') {
       const newModel = await selectModelFromList("Trocar de Modelo", model, { excludeCombos: false, port });
       if (newModel && newModel !== model) {
@@ -681,7 +704,16 @@ async function startChatUI(port) {
           try {
             const commitData = JSON.parse(jsonMatch[1]);
             if (commitData.commitMessage) {
-              const shouldCommit = await confirm(`\n${COLORS.yellow}Confirmar e realizar o commit com esta mensagem?\n"${commitData.commitMessage}"${COLORS.reset}`);
+              // Show diff summary before confirming
+              let diffSummary = "";
+              try {
+                diffSummary = execSync("rtk git diff --stat HEAD", { encoding: "utf8" });
+              } catch {}
+              if (diffSummary.trim()) {
+                console.log(`\n${COLORS.cyan}📋 Arquivos alterados:${COLORS.reset}`);
+                console.log(`${COLORS.dim}${diffSummary.trim()}${COLORS.reset}`);
+              }
+              const shouldCommit = await confirm(`\n${COLORS.yellow}Confirmar commit?\n"${commitData.commitMessage}"${COLORS.reset}`);
               if (shouldCommit) {
                 spawnSync('git', ['add', '.'], { stdio: 'inherit' });
                 spawnSync('git', ['commit', '-m', commitData.commitMessage], { stdio: 'inherit' });

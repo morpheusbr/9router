@@ -48,7 +48,7 @@ function suspendRawFor(fn) {
 }
 
 const SLASH_COMMANDS = [
-  "/plan", "/code", "/test", "/commit", "/review", "/skill", "/debug",
+  "/plan", "/code", "/test", "/commit", "/review", "/skill", "/debug", "/explain",
   "/read", "/model", "/fav", "/palette", "/web", "/menu", "/history",
   "/status", "/undo", "/save", "/copy", "/copy-code", "/paste",
   "/paste-image", "/image", "/rollback", "/audit", "/stats",
@@ -134,6 +134,10 @@ function defaultCompleter(line) {
   return [[], line];
 }
 
+// Shared command history across prompts (arrow ↑/↓)
+const _sharedHistory = [];
+const MAX_HISTORY = 200;
+
 async function prompt(question, options = {}) {
   const completer = typeof options === "function" ? options : (options.completer || defaultCompleter);
   return suspendRawFor(() => new Promise((resolve, reject) => {
@@ -141,7 +145,9 @@ async function prompt(question, options = {}) {
       input: process.stdin,
       output: process.stdout,
       completer: completer,
-      terminal: true
+      terminal: true,
+      history: _sharedHistory,
+      historySize: MAX_HISTORY,
     });
 
     const onSigint = () => {
@@ -152,9 +158,15 @@ async function prompt(question, options = {}) {
     rl.on("SIGINT", onSigint);
 
     rl.question(question, (answer) => {
+      // Save to shared history (avoid duplicates)
+      const trimmed = (answer || "").trim();
+      if (trimmed && trimmed !== _sharedHistory[0]) {
+        _sharedHistory.unshift(trimmed);
+        if (_sharedHistory.length > MAX_HISTORY) _sharedHistory.pop();
+      }
       rl.removeListener("SIGINT", onSigint);
       rl.close();
-      resolve((answer || "").trim());
+      resolve(trimmed);
     });
   }));
 }
