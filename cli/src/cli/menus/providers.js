@@ -348,12 +348,13 @@ async function showConnectionActions(connection, providerId, breadcrumb = []) {
       {
         label: "Test Connection",
         action: async () => {
-          showStatus("Testing connection...", "info");
+          const { spinner } = require("../utils/menuHelper");
+          const done = spinner("Testing connection...");
           const result = await api.testConnection(connection.id);
           if (result.success) {
-            showStatus("Connection is working!", "success");
+            done("Connection is working!");
           } else {
-            showStatus(`Test failed: ${result.error}`, "error");
+            done(null, `Test failed: ${result.error}`);
           }
           await pause();
           return true;

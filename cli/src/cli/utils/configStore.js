@@ -19,7 +19,10 @@ function load() {
     if (fs.existsSync(file)) {
       _cache = JSON.parse(fs.readFileSync(file, "utf8"));
     }
-  } catch {}
+  } catch (e) {
+    if (process.env.DEBUG) console.warn("[configStore] load failed:", e.message);
+    _cache = {};
+  }
   _cache = _cache || {};
   return _cache;
 }
@@ -31,7 +34,9 @@ function save(config) {
     const dir = path.dirname(file);
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
     fs.writeFileSync(file, JSON.stringify(config, null, 2), "utf8");
-  } catch {}
+  } catch (e) {
+    if (process.env.DEBUG) console.warn("[configStore] save failed:", e.message);
+  }
 }
 
 function get(key, fallback) {

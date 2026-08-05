@@ -34,14 +34,14 @@ function logAudit(action, details = {}) {
       ...details
     };
     fs.appendFileSync(logPath, JSON.stringify(entry) + "\n");
-  } catch (e) {}
+  } catch (e) { if (process.env.DEBUG) console.warn("[audit] write failed:", e.message); }
 }
 
 function createGitCheckpoint() {
   try {
     const stash = execSync("rtk git stash create 2>/dev/null", { encoding: "utf8" }).trim();
     if (stash) lastGitCheckpoint = stash;
-  } catch (e) {}
+  } catch (e) { if (process.env.DEBUG) console.warn("[checkpoint] git stash create failed:", e.message); }
 }
 
 function rollbackGitCheckpoint() {
@@ -50,12 +50,13 @@ function rollbackGitCheckpoint() {
     try {
       execSync(`rtk git reset --hard ${lastGitCheckpoint}`, { stdio: "ignore" });
       return true;
-    } catch (e) {}
+    } catch (e) { if (process.env.DEBUG) console.warn("[rollback] git reset failed:", e.message); }
   }
   try {
     execSync("rtk git checkout .", { stdio: "ignore" });
     return true;
   } catch (e) {
+    if (process.env.DEBUG) console.warn("[rollback] git checkout failed:", e.message);
     return false;
   }
 }

@@ -720,7 +720,7 @@ async function startChatUI(port) {
                 console.log(`${COLORS.green}✅ Commit realizado!${COLORS.reset}\n`);
               }
             }
-          } catch(e) {}
+          } catch(e) { console.log(`${COLORS.dim}[Commit: JSON inválido na resposta da IA]${COLORS.reset}`); }
         }
       }
 
@@ -736,7 +736,7 @@ async function startChatUI(port) {
               fs.writeFileSync(path.join(skillsDir, "SKILL.md"), skillData.skillContent);
               console.log(`${COLORS.green}✅ Skill '${skillData.skillName}' criada!${COLORS.reset}\n`);
             }
-          } catch (e) {}
+          } catch (e) { console.log(`${COLORS.dim}[Skill: JSON inválido na resposta da IA]${COLORS.reset}`); }
         }
       }
 

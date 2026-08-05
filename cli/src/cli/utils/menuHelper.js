@@ -1,4 +1,53 @@
-const { selectMenu } = require("./input");
+const { selectMenu, COLORS } = require("./input");
+
+/**
+ * Animated spinner for async operations.
+ * Usage:
+ *   const done = spinner("Connecting...");
+ *   await someAsyncWork();
+ *   done("Connected!"); // or done(null, "Failed!")
+ *
+ * @param {string} message - Loading message
+ * @returns {function} done(successMsg?, errorMsg?)
+ */
+function spinner(message) {
+  const frames = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
+  let i = 0;
+  let timer = null;
+
+  process.stdout.write(`${COLORS.cyan}${frames[0]}${COLORS.reset} ${message}`);
+  timer = setInterval(() => {
+    process.stdout.write(`\r${COLORS.cyan}${frames[i++ % frames.length]}${COLORS.reset} ${message}`);
+  }, 80);
+
+  return function done(successMsg, errorMsg) {
+    if (timer) clearInterval(timer);
+    process.stdout.write(`\r\x1b[K`);
+    if (successMsg) {
+      console.log(`${COLORS.green}✅ ${successMsg}${COLORS.reset}`);
+    } else if (errorMsg) {
+      console.log(`${COLORS.red}❌ ${errorMsg}${COLORS.reset}`);
+    }
+  };
+}
+
+/**
+ * Run an async function with a spinner.
+ * @param {string} message - Loading message
+ * @param {Function} fn - Async function to execute
+ * @returns {Promise<any>} Result of fn
+ */
+async function withSpinner(message, fn) {
+  const done = spinner(message);
+  try {
+    const result = await fn();
+    done(message.replace(/\.\.\.$/, '').replace(/\.\.\./, '') + " ✓");
+    return result;
+  } catch (err) {
+    done(null, err.message);
+    throw err;
+  }
+}
 
 /**
  * Show a menu with back button at top and handle selection
@@ -151,5 +200,7 @@ async function showListMenu(config) {
 
 module.exports = {
   showMenuWithBack,
-  showListMenu
+  showListMenu,
+  spinner,
+  withSpinner
 };

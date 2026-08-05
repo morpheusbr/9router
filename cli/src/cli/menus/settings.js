@@ -117,6 +117,55 @@ async function showSettingsMenu(breadcrumb = []) {
           return mode === "password" ? "🔓 Reset Auth Mode (already password)" : `🔓 Reset Auth Mode to Password (current: ${mode})`;
         },
         action: async () => { await resetAuthMode(); return true; }
+      },
+      {
+        label: () => {
+          const on = require("../utils/configStore").get("selfHeal", true);
+          return `🧟 Wolverine (Self-Heal): ${on ? "ON" : "OFF"} → toggle`;
+        },
+        action: async () => {
+          const configStore = require("../utils/configStore");
+          const current = configStore.get("selfHeal", true);
+          configStore.set("selfHeal", !current);
+          showStatus(`Wolverine Self-Heal ${!current ? "ATIVADO" : "DESATIVADO"}`, "success");
+          await pause();
+          return true;
+        }
+      },
+      {
+        label: () => {
+          const on = require("../utils/configStore").get("autoBrowser", true);
+          return `🌐 Auto-Open Browser: ${on ? "ON" : "OFF"} → toggle`;
+        },
+        action: async () => {
+          const configStore = require("../utils/configStore");
+          const current = configStore.get("autoBrowser", true);
+          configStore.set("autoBrowser", !current);
+          showStatus(`Auto-Open Browser ${!current ? "ATIVADO" : "DESATIVADO"}`, "success");
+          await pause();
+          return true;
+        }
+      },
+      {
+        label: () => {
+          const port = require("../utils/configStore").get("defaultPort", 20128);
+          return `📡 Default Port: ${port} → change`;
+        },
+        action: async () => {
+          const { prompt } = require("../utils/input");
+          const configStore = require("../utils/configStore");
+          const current = configStore.get("defaultPort", 20128);
+          const answer = await prompt(`\nNovo port (atual: ${current}): `);
+          const newPort = parseInt(answer);
+          if (newPort >= 1024 && newPort <= 65535) {
+            configStore.set("defaultPort", newPort);
+            showStatus(`Port alterado para: ${newPort}`, "success");
+          } else if (answer) {
+            showStatus("Port inválido (1024-65535)", "error");
+          }
+          await pause();
+          return true;
+        }
       }
     ]
   });
@@ -185,18 +234,19 @@ async function resetAuthMode() {
  * Enable tunnel via API
  */
 async function enableTunnel() {
-  showStatus("Creating tunnel...", "info");
+  const { spinner } = require("../utils/menuHelper");
+  const done = spinner("Creating tunnel...");
   const result = await api.enableTunnel();
 
   if (result.success) {
     const { publicUrl, shortId, alreadyRunning } = result.data || {};
     if (alreadyRunning) {
-      showStatus(`Tunnel already running: ${publicUrl}`, "success");
+      done(`Tunnel already running: ${publicUrl}`);
     } else {
-      showStatus(`Tunnel enabled: ${publicUrl} (${shortId})`, "success");
+      done(`Tunnel enabled: ${publicUrl} (${shortId})`);
     }
   } else {
-    showStatus(`Failed: ${result.error}`, "error");
+    done(null, `Failed: ${result.error}`);
   }
 
   await pause();

@@ -115,21 +115,31 @@ const COMMAND_DESCRIPTIONS = {
   "/exit": "Quit HiperRouter Agent"
 };
 
-// Fuzzy match: checks if query chars appear in order within target
+/**
+ * Fuzzy match: checks if all chars of query appear in order in target.
+ * @param {string} query
+ * @param {string} target
+ * @returns {boolean}
+ */
 function fuzzyMatch(query, target) {
-  const q = query.toLowerCase();
-  const t = target.toLowerCase();
   let qi = 0;
-  for (let ti = 0; ti < t.length && qi < q.length; ti++) {
-    if (t[ti] === q[qi]) qi++;
+  for (let i = 0; i < target.length && qi < query.length; i++) {
+    if (target[i] === query[qi]) qi++;
   }
-  return qi === q.length;
+  return qi === query.length;
 }
 
 function defaultCompleter(line) {
   if (line.startsWith("/")) {
-    const hits = SLASH_COMMANDS.filter((c) => c.startsWith(line));
-    return [hits.length ? hits : SLASH_COMMANDS, line];
+    // Try prefix match first (exact)
+    const prefixHits = SLASH_COMMANDS.filter((c) => c.startsWith(line));
+    if (prefixHits.length > 0) return [prefixHits, line];
+
+    // Fuzzy match: /code matches /copy-code, /consensus matches /con, etc.
+    const fuzzyHits = SLASH_COMMANDS.filter((c) => fuzzyMatch(line, c));
+    if (fuzzyHits.length > 0) return [fuzzyHits, line];
+
+    return [SLASH_COMMANDS, line];
   }
   return [[], line];
 }

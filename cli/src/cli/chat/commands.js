@@ -321,14 +321,6 @@ async function handleSlashCommand(lowerMsg, rawUserMessage, state) {
     return true;
   }
 
-  if (lowerMsg === '/stats' || lowerMsg === 'stats') {
-    const { run } = require("../commands/stats");
-    await run([]);
-    const { pause } = require("../utils/input");
-    await pause();
-    return true;
-  }
-
   return false; // Not handled here
 }
 
