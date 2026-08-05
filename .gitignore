@@ -91,6 +91,12 @@ graphify-out/*
 .next-analyze/*
 .HiperRouter/
 .hiperrouter/
+.codex/
+.config/
+.grok/
+.hermes/
+.local/
+.openclaw/
 
 # Databases and Secrets
 *.sqlite
