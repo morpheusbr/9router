@@ -48,8 +48,9 @@ function suspendRawFor(fn) {
 }
 
 const SLASH_COMMANDS = [
-  "/plan", "/code", "/test", "/commit", "/review", "/skill", "/debug", "/explain",
-  "/read", "/model", "/fav", "/palette", "/web", "/menu", "/history",
+  "/plan", "/code", "/test", "/commit", "/review", "/skill", "/debug", "/explain", "/refactor",
+  "/diff", "/git", "/read", "/model", "/fav", "/palette", "/web", "/menu", "/history",
+  "/status", "/undo", "/save", "/load", "/sessions", "/copy", "/copy-code", "/paste",
   "/status", "/undo", "/save", "/copy", "/copy-code", "/paste",
   "/paste-image", "/image", "/rollback", "/audit", "/stats",
   "/providers", "/combos", "/alias", "/personas", "/playground",

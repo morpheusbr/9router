@@ -10,9 +10,12 @@ function showHelp() {
     { cmd: "/test <arquivo>", desc: "Gerador de Testes: Analisa o arquivo e cria os testes unitários." },
     { cmd: "/commit", desc: "Auto-Commit: Analisa o git diff e realiza um commit semântico." },
     { cmd: "/review", desc: "Auditoria de Código: Revisa o git diff buscando bugs, Zod e SSRF." },
+    { cmd: "/diff [arquivo]", desc: "Git Diff: Mostra alterações não commitadas com syntax highlighting." },
+    { cmd: "/git [n]", desc: "Git Log: Mostra últimos N commits com diff interativo." },
     { cmd: "/skill <instruções>", desc: "Gerador de Skill: Cria uma nova skill personalizada no projeto." },
     { cmd: "/debug", desc: "Modo Debug: Captura os últimos erros PM2 (hiperrouter) para correção." },
     { cmd: "/explain <arquivo>", desc: "Explicar Código: Explica o arquivo de forma detalhada sem alterá-lo." },
+    { cmd: "/refactor <arquivo>", desc: "Refatorar: Melhora código (extração, simplificação, performance)." },
     { cmd: "/read <arquivo>", desc: "Leitor: Injeta o conteúdo de um arquivo local na conversa." },
     { cmd: "/model", desc: "Trocar Modelo: Abre menu interativo com filtro de busca." },
     { cmd: "/fav", desc: "Favoritar Modelo: Adiciona/remove modelo atual dos favoritos." },
@@ -52,6 +55,7 @@ function showHelp() {
     { cmd: "/quota", desc: "Cotas & Limites: Define orçamento diário e teto de requisições RPM/TPM." },
     { cmd: "/consolelog", desc: "Logs do Sistema: Exibe os logs brutos do processo Node.js / PM2." },
     { cmd: "/endpoint", desc: "Endpoint & Ping: Exibe as URLs de conexão para editores e testa o ping." },
+    { cmd: "/compact", desc: "Modo Compacto: Alterna entre output detalhado e resumido." },
     { cmd: "/help", desc: "Central de Ajuda: Exibe esta lista detalhada de comandos." },
     { cmd: "/clear", desc: "Limpar Chat: Reseta o histórico de mensagens e limpa a tela." },
     { cmd: "/exit", desc: "Sair: Encerra a sessão do HiperRouter Agent." }
@@ -115,6 +119,18 @@ async function handleSlashCommand(lowerMsg, rawUserMessage, state) {
     console.log(`${COLORS.dim}Histórico do chat limpo.${COLORS.reset}\n`);
     return true;
   }
+
+  if (lowerMsg === '/compact') {
+    const configStore = require("../utils/configStore");
+    const current = configStore.get("compactMode", false);
+    configStore.set("compactMode", !current);
+    if (!current) {
+      console.log(`${COLORS.green}✅ Modo compacto ATIVADO: status bar menor, output resumido.${COLORS.reset}\n`);
+    } else {
+      console.log(`${COLORS.green}✅ Modo compacto DESATIVADO: output detalhado.${COLORS.reset}\n`);
+    }
+    return true;
+  }
   
   if (lowerMsg === '/fav') {
     const configStore = require("../utils/configStore");
@@ -152,6 +168,63 @@ async function handleSlashCommand(lowerMsg, rawUserMessage, state) {
         : `${COLORS.red}⚠️  Servidor respondeu ${res.status} na porta ${port}${COLORS.reset}\n`);
     } catch {
       console.log(`${COLORS.red}❌ Servidor inacessível na porta ${port}${COLORS.reset}\n`);
+    }
+    return true;
+  }
+
+  if (lowerMsg.startsWith('/diff')) {
+    const arg = rawUserMessage.substring(5).trim();
+    let diffCmd = "rtk git diff HEAD";
+    if (arg) diffCmd = `rtk git diff HEAD -- ${arg}`;
+
+    try {
+      const diff = require("child_process").execSync(diffCmd, { encoding: "utf8", timeout: 10000 });
+      if (!diff.trim()) {
+        console.log(`${COLORS.green}✅ Nenhuma alteração não commitada.${COLORS.reset}\n`);
+      } else {
+        const lines = diff.split('\n');
+        const stats = { added: 0, removed: 0, files: new Set() };
+        for (const line of lines) {
+          if (line.startsWith('+') && !line.startsWith('+++')) stats.added++;
+          if (line.startsWith('-') && !line.startsWith('---')) stats.removed++;
+          if (line.startsWith('diff --git')) {
+            const m = line.match(/b\/(.+)$/);
+            if (m) stats.files.add(m[1]);
+          }
+        }
+        console.log(`\n${COLORS.bright}📋 Git Diff:${COLORS.reset} ${stats.files.size} arquivo(s) | ${COLORS.green}+${stats.added} ${COLORS.red}-${stats.removed}${COLORS.reset}\n`);
+        for (const line of lines) {
+          if (line.startsWith('+') && !line.startsWith('+++')) console.log(`${COLORS.green}${line}${COLORS.reset}`);
+          else if (line.startsWith('-') && !line.startsWith('---')) console.log(`${COLORS.red}${line}${COLORS.reset}`);
+          else if (line.startsWith('@@')) console.log(`${COLORS.cyan}${line}${COLORS.reset}`);
+          else if (line.startsWith('diff --git')) console.log(`\n${COLORS.bright}${line}${COLORS.reset}`);
+          else console.log(line);
+        }
+        console.log();
+      }
+    } catch(e) {
+      console.log(`${COLORS.red}Erro ao executar git diff: ${e.message}${COLORS.reset}\n`);
+    }
+    return true;
+  }
+
+  if (lowerMsg.startsWith('/git')) {
+    const n = parseInt(rawUserMessage.substring(4).trim()) || 15;
+    try {
+      const log = require("child_process").execSync(`rtk git log -n ${n} --format="%h|%s|%an|%ai"`, { encoding: "utf8", timeout: 10000 });
+      const commits = log.trim().split('\n').filter(Boolean).map(line => {
+        const [hash, msg, author, date] = line.split('|');
+        return { hash, msg, author, date: date?.split(' ')[0] };
+      });
+
+      console.log(`\n${COLORS.bright}📜 Git Log (${commits.length} commits):${COLORS.reset}\n`);
+      for (const c of commits) {
+        const date = c.date ? `${COLORS.dim}${c.date}${COLORS.reset}` : '';
+        console.log(`  ${COLORS.cyan}${c.hash}${COLORS.reset} ${c.msg} ${date}`);
+      }
+      console.log(`\n${COLORS.dim}Use /diff para ver alterações não commitadas.${COLORS.reset}\n`);
+    } catch(e) {
+      console.log(`${COLORS.red}Erro ao executar git log: ${e.message}${COLORS.reset}\n`);
     }
     return true;
   }

@@ -17,6 +17,7 @@ const path = require("path");
 const { execSync, spawn, spawnSync } = require("child_process");
 const { logAudit, createGitCheckpoint, rollbackGitCheckpoint, processPatches, processNewFiles } = require("./chat/patchEngine");
 const { showHelp, showAuditLogs } = require("./chat/commands");
+const { renderMarkdown } = require("./utils/display");
 
 /**
  * Estimativa simples de tokens (chars / 4 ≈ tokens para modelos OpenAI/Claude).
@@ -186,20 +187,25 @@ async function startChatUI(port) {
     const contextLimit = getContextLimit(model);
     const contextPct = Math.min(99, Math.round((estimatedTokens / contextLimit) * 100));
     const contextColor = contextPct > 80 ? COLORS.red : contextPct > 50 ? COLORS.yellow : COLORS.green;
-    const rawStatus = ` 🤖 Model: ${model} │ ⚡ Persona: ${activePersona.toUpperCase()} │ 🌐 Lang: ${activeLang} │ 📡 Port: :${port} │ 💬 Msgs: ${messages.length} │ 🧠 Ctx: ~${contextPct}% │ ⏱️ Uptime: ${uptimeMin}m `;
-    const boxWidth = Math.max(78, rawStatus.length + 4);
-    const innerWidth = boxWidth - 2;
-    const paddingRight = Math.max(0, innerWidth - rawStatus.length);
+    const compactMode = require("./utils/configStore").get("compactMode", false);
 
-    const coloredStatus = ` 🤖 Model: ${COLORS.cyan}${model}${COLORS.reset} │ ⚡ Persona: ${COLORS.green}${activePersona.toUpperCase()}${COLORS.reset} │ 🌐 Lang: ${COLORS.cyan}${activeLang}${COLORS.reset} │ 📡 Port: ${COLORS.yellow}:${port}${COLORS.reset} │ 💬 Msgs: ${messages.length} │ 🧠 Ctx: ${contextColor}~${contextPct}%${COLORS.reset} │ ⏱️ Uptime: ${uptimeMin}m ${" ".repeat(paddingRight)}`;
+    if (compactMode) {
+      // Compact status bar - single line
+      console.log(`${COLORS.dim}${model} │ ${activePersona.toUpperCase()} │ ${messages.length}msg │ ${contextColor}~${contextPct}%${COLORS.reset} │ ${uptimeMin}m`);
+    } else {
+      const rawStatus = ` 🤖 Model: ${model} │ ⚡ Persona: ${activePersona.toUpperCase()} │ 🌐 Lang: ${activeLang} │ 📡 Port: :${port} │ 💬 Msgs: ${messages.length} │ 🧠 Ctx: ~${contextPct}% │ ⏱️ Uptime: ${uptimeMin}m `;
+      const boxWidth = Math.max(78, rawStatus.length + 4);
+      const innerWidth = boxWidth - 2;
+      const paddingRight = Math.max(0, innerWidth - rawStatus.length);
+      const coloredStatus = ` 🤖 Model: ${COLORS.cyan}${model}${COLORS.reset} │ ⚡ Persona: ${COLORS.green}${activePersona.toUpperCase()}${COLORS.reset} │ 🌐 Lang: ${COLORS.cyan}${activeLang}${COLORS.reset} │ 📡 Port: ${COLORS.yellow}:${port}${COLORS.reset} │ 💬 Msgs: ${messages.length} │ 🧠 Ctx: ${contextColor}~${contextPct}%${COLORS.reset} │ ⏱️ Uptime: ${uptimeMin}m ${" ".repeat(paddingRight)}`;
 
-    if (contextPct > 80) {
-      console.log(`${COLORS.yellow}⚠️  Contexto em ~${contextPct}% (${estimatedTokens.toLocaleString()} tokens). Use /clear para liberar espaço.${COLORS.reset}`);
+      if (contextPct > 80) {
+        console.log(`${COLORS.yellow}⚠️  Contexto em ~${contextPct}% (${estimatedTokens.toLocaleString()} tokens). Use /clear para liberar espaço.${COLORS.reset}`);
+      }
+      console.log(`\n${COLORS.cyan}╭${"─".repeat(innerWidth)}╮${COLORS.reset}`);
+      console.log(`${COLORS.cyan}│${COLORS.reset}${coloredStatus}${COLORS.cyan}│${COLORS.reset}`);
+      console.log(`${COLORS.cyan}╰${"─".repeat(innerWidth)}╯${COLORS.reset}`);
     }
-
-    console.log(`\n${COLORS.cyan}╭${"─".repeat(innerWidth)}╮${COLORS.reset}`);
-    console.log(`${COLORS.cyan}│${COLORS.reset}${coloredStatus}${COLORS.cyan}│${COLORS.reset}`);
-    console.log(`${COLORS.cyan}╰${"─".repeat(innerWidth)}╯${COLORS.reset}`);
 
     const promptTitle = "─[ Prompt ]";
     const promptHeaderPad = Math.max(0, innerWidth - promptTitle.length);
@@ -418,6 +424,31 @@ async function startChatUI(port) {
 - Seja conciso e direto`;
         finalUserMessage = `Explique este arquivo (${filePath}):\n\`\`\`\n${fileContent}\n\`\`\``;
         console.log(`${COLORS.dim}[Modo Explain: Analisando '${filePath}'...]${COLORS.reset}`);
+      } else {
+        console.log(`${COLORS.red}Arquivo não encontrado: ${filePath}${COLORS.reset}\n`);
+        continue;
+      }
+    } else if (lowerMsg.startsWith('/refactor ')) {
+      currentCommand = '/refactor';
+      const filePath = rawUserMessage.substring(10).trim();
+      const fullPath = path.resolve(process.cwd(), filePath);
+      if (fs.existsSync(fullPath)) {
+        const fileSize = fs.statSync(fullPath).size;
+        if (fileSize > 102400) {
+          console.log(`${COLORS.yellow}⚠️ Arquivo muito grande (${(fileSize/1024).toFixed(0)}KB). Lendo primeiras 100KB...${COLORS.reset}`);
+        }
+        const fileContent = fs.readFileSync(fullPath, "utf-8").substring(0, 102400);
+        systemPrompt = `Você é um Especialista em Refatoração de Código. Sua tarefa é melhorar o código fornecido seguindo as melhores práticas:
+- Extraia funções/métodos quando código está muito longo
+- Simplifique condicionais complexas
+- Remova código duplicado
+- Melhore nomes de variáveis e funções
+- Aplique padrões de design quando apropriado
+- Otimize performance quando possível
+- NÃO mude a lógica externa (API pública deve permanecer igual)
+- Use <patch> para cada alteração cirúrgica`;
+        finalUserMessage = `Refatore este arquivo (${filePath}). Foque em legibilidade, manutenibilidade e performance:\n\`\`\`\n${fileContent}\n\`\`\``;
+        console.log(`${COLORS.dim}[Modo Refactor: Analisando '${filePath}'...]${COLORS.reset}`);
       } else {
         console.log(`${COLORS.red}Arquivo não encontrado: ${filePath}${COLORS.reset}\n`);
         continue;
@@ -704,8 +735,9 @@ async function startChatUI(port) {
         if (!inCodeBlock) {
           const fenceStart = remaining.indexOf('```');
           if (fenceStart !== -1) {
-            // Print text before fence
-            process.stdout.write(remaining.substring(0, fenceStart));
+            // Print text before fence (with markdown rendering)
+            const beforeText = remaining.substring(0, fenceStart);
+            if (beforeText) process.stdout.write(renderMarkdown(beforeText));
             const afterFence = remaining.substring(fenceStart + 3);
             const newlineIdx = afterFence.indexOf('\n');
             if (newlineIdx !== -1) {
@@ -719,7 +751,8 @@ async function startChatUI(port) {
               remaining = "";
             }
           } else {
-            process.stdout.write(remaining);
+            // No fence found - render markdown and print
+            process.stdout.write(renderMarkdown(remaining));
             remaining = "";
           }
         } else {

@@ -195,7 +195,22 @@ class AgentRuntime extends EventEmitter {
         }
 
       } catch (err) {
-        console.log(`\n${COLORS.red}Falha na comunicação: ${err.message}${COLORS.reset}`);
+        const errMsg = err.message || String(err);
+        console.log(`\n${COLORS.red}Falha na comunicação: ${errMsg}${COLORS.reset}`);
+
+        // Smart suggestions based on error type
+        if (errMsg.includes('timeout') || errMsg.includes('TIMEOUT')) {
+          console.log(`${COLORS.dim}💡 Contexto pode estar grande. Tente /clear ou aguarde compressão automática.${COLORS.reset}`);
+        } else if (errMsg.includes('429') || errMsg.includes('rate')) {
+          console.log(`${COLORS.dim}💡 Rate limit. Tente /model para trocar de modelo.${COLORS.reset}`);
+        } else if (errMsg.includes('401') || errMsg.includes('403')) {
+          console.log(`${COLORS.dim}💡 Erro de autenticação. Verifique suas API keys com /key.${COLORS.reset}`);
+        } else if (errMsg.includes('ECONNREFUSED') || errMsg.includes('fetch failed')) {
+          console.log(`${COLORS.dim}💡 Servidor offline. Verifique com /status ou reinicie com hiperrouter.${COLORS.reset}`);
+        } else if (errMsg.includes('context') || errMsg.includes('token')) {
+          console.log(`${COLORS.dim}💡 Contexto excedido. Use /clear para resetar.${COLORS.reset}`);
+        }
+
         messages.pop();
         aiThinking = false;
         this.emit("error", err);

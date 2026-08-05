@@ -268,6 +268,59 @@ function highlightSyntax(code) {
     .join("\n");
 }
 
+/**
+ * Render markdown for terminal display.
+ * Converts markdown syntax to ANSI colors.
+ * @param {string} text - Markdown text
+ * @returns {string} Terminal-formatted text
+ */
+function renderMarkdown(text) {
+  if (!text) return '';
+  const B = '\x1b[1m';   // bold
+  const D = '\x1b[2m';   // dim
+  const C = '\x1b[36m';  // cyan
+  const G = '\x1b[32m';  // green
+  const Y = '\x1b[33m';  // yellow
+  const R = '\x1b[31m';  // red
+  const U = '\x1b[4m';   // underline
+  const X = '\x1b[0m';   // reset
+
+  return text
+    .split('\n')
+    .map(line => {
+      // Headers
+      if (line.startsWith('###### ')) return `${D}${B}${line.substring(7)}${X}`;
+      if (line.startsWith('##### ')) return `${D}${B}${line.substring(6)}${X}`;
+      if (line.startsWith('#### ')) return `${C}${B}${line.substring(5)}${X}`;
+      if (line.startsWith('### ')) return `${C}${B}${line.substring(4)}${X}`;
+      if (line.startsWith('## ')) return `${B}${line.substring(3)}${X}`;
+      if (line.startsWith('# ')) return `${B}${U}${line.substring(2)}${X}`;
+
+      // Horizontal rule
+      if (/^---+$/.test(line.trim())) return `${D}${'─'.repeat(50)}${X}`;
+
+      // Bullet points
+      if (line.match(/^\s*[-*]\s/)) {
+        line = line.replace(/^(\s*)([-*])/, `$1${G}•${X}`);
+      }
+
+      // Numbered lists
+      line = line.replace(/^(\s*)(\d+)\.\s/, `$1${C}$2.${X} `);
+
+      // Inline formatting
+      line = line.replace(/\*\*([^*]+)\*\*/g, `${B}$1${X}`);  // bold
+      line = line.replace(/\*([^*]+)\*/g, `${D}$1${X}`);       // italic
+      line = line.replace(/`([^`]+)`/g, `${Y}$1${X}`);         // inline code
+      line = line.replace(/~~([^~]+)~~/g, `${D}$1${X}`);       // strikethrough
+
+      // Links [text](url)
+      line = line.replace(/\[([^\]]+)\]\(([^)]+)\)/g, `${U}${C}$1${X} ${D}($2)${X}`);
+
+      return line;
+    })
+    .join('\n');
+}
+
 module.exports = {
   showBox,
   showMenu,
@@ -276,5 +329,6 @@ module.exports = {
   clearScreen,
   showHeader,
   renderDiffPreview,
-  highlightSyntax
+  highlightSyntax,
+  renderMarkdown
 };
