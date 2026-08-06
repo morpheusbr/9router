@@ -45,6 +45,19 @@ command -v rsync >/dev/null || fail "rsync não encontrado"
 command -v npm >/dev/null || fail "npm não encontrado"
 command -v pm2 >/dev/null || fail "pm2 não encontrado"
 command -v curl >/dev/null || fail "curl não encontrado"
+if [[ ! "${API_KEY_SECRET:-}" =~ ^.{32,}$ ]]; then
+  PM2_SECRET="$(pm2 jlist 2>/dev/null | node -e '
+    const fs = require("fs");
+    try {
+      const apps = JSON.parse(fs.readFileSync(0, "utf8"));
+      const app = apps.find((entry) => entry.name === "HiperRouter");
+      process.stdout.write(app?.pm2_env?.env?.API_KEY_SECRET || "");
+    } catch {}
+  ' 2>/dev/null || true)"
+  if [[ "$PM2_SECRET" =~ ^.{32,}$ ]]; then
+    export API_KEY_SECRET="$PM2_SECRET"
+  fi
+fi
 [[ "${API_KEY_SECRET:-}" =~ ^.{32,}$ ]] \
   || fail "API_KEY_SECRET ausente ou menor que 32 caracteres; deploy cancelado"
 
