@@ -1,6 +1,15 @@
 import crypto from "crypto";
 
-const API_KEY_SECRET = process.env.API_KEY_SECRET || "endpoint-proxy-api-key-secret";
+function resolveApiKeySecret() {
+  const configured = process.env.API_KEY_SECRET?.trim();
+  if (configured && configured.length >= 32) return configured;
+  if (process.env.NODE_ENV === "production") {
+    throw new Error("API_KEY_SECRET ausente ou fraco em produção");
+  }
+  return crypto.randomBytes(32).toString("hex");
+}
+
+const API_KEY_SECRET = resolveApiKeySecret();
 
 /**
  * Generate 6-char random keyId
@@ -95,4 +104,3 @@ export function isNewFormatKey(apiKey) {
   const parsed = parseApiKey(apiKey);
   return parsed?.isNewFormat === true;
 }
-

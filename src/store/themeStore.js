@@ -9,21 +9,19 @@ const useThemeStore = create(
     (set, get) => ({
       theme: THEME_CONFIG.defaultTheme,
 
-      setTheme: (theme) => {
-        set({ theme });
-        applyTheme(theme);
+      setTheme: () => {
+        set({ theme: "dark" });
+        applyTheme("dark");
       },
 
       toggleTheme: () => {
-        const currentTheme = get().theme;
-        const newTheme = currentTheme === "dark" ? "light" : "dark";
-        set({ theme: newTheme });
-        applyTheme(newTheme);
+        set({ theme: "dark" });
+        applyTheme("dark");
       },
 
       initTheme: () => {
-        const theme = get().theme;
-        applyTheme(theme);
+        if (get().theme !== "dark") set({ theme: "dark" });
+        applyTheme("dark");
       },
     }),
     {
@@ -51,4 +49,3 @@ function applyTheme(theme) {
 }
 
 export default useThemeStore;
-

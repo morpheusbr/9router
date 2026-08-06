@@ -11,6 +11,7 @@ BUILD_APP_DIR="$BUILD_DIR/cli/app"
 BACKUP_ROOT="$PROD_DIR/.deploy-backups"
 LOCK_FILE="$PROD_DIR/.deploy.lock"
 HEALTH_URL="${HIPERROUTER_HEALTH_URL:-http://127.0.0.1:20128/api/health}"
+SERVER_HOST="${HIPERROUTER_SERVER_HOST:-0.0.0.0}"
 DEPLOY_ID="$(date -u +%Y%m%dT%H%M%SZ)"
 BACKUP_DIR="$BACKUP_ROOT/$DEPLOY_ID"
 BUILD_LOG="$BUILD_DIR/build-$DEPLOY_ID.log"
@@ -44,6 +45,8 @@ command -v rsync >/dev/null || fail "rsync não encontrado"
 command -v npm >/dev/null || fail "npm não encontrado"
 command -v pm2 >/dev/null || fail "pm2 não encontrado"
 command -v curl >/dev/null || fail "curl não encontrado"
+[[ "${API_KEY_SECRET:-}" =~ ^.{32,}$ ]] \
+  || fail "API_KEY_SECRET ausente ou menor que 32 caracteres; deploy cancelado"
 
 mkdir -p "$BACKUP_ROOT"
 exec 9>"$LOCK_FILE"
@@ -90,9 +93,9 @@ rsync -a --delete "$BUILD_APP_DIR/" "$APP_DIR/"
 
 log "Recarregando PM2"
 if pm2 describe HiperRouter >/dev/null 2>&1; then
-  pm2 reload HiperRouter --update-env
+  HOSTNAME="$SERVER_HOST" PORT=20128 pm2 reload HiperRouter --update-env
 else
-  pm2 start "$PROD_DIR/ecosystem.config.js" --update-env
+  HOSTNAME="$SERVER_HOST" PORT=20128 pm2 start "$PROD_DIR/ecosystem.config.js" --update-env
 fi
 
 log "Validando health check: $HEALTH_URL"

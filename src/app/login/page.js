@@ -144,9 +144,11 @@ export default function LoginPage() {
 
       <div className="relative z-10 w-full max-w-[420px] px-6 animate-in fade-in zoom-in-95 duration-700 ease-out">
         <div className="text-center mb-8 flex flex-col items-center">
-          <div className="w-16 h-16 rounded-[18px] bg-gradient-to-br from-primary to-amber-500 text-white shadow-warm mb-5 flex items-center justify-center transform transition-transform hover:scale-110 duration-500">
-            <span className="material-symbols-outlined text-4xl">router</span>
-          </div>
+          <img
+            src="/hiperrouter-mark.svg"
+            alt="HiperRouter"
+            className="w-16 h-16 rounded-[18px] shadow-warm mb-5 transform transition-transform hover:scale-110 duration-500"
+          />
           <h1 className="text-4xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-text to-text-muted mb-2 tracking-tight drop-shadow-sm">HiperRouter</h1>
           <p className="text-text-muted text-sm font-medium px-4">
             {authMode === "oidc" && oidcConfigured

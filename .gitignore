@@ -106,3 +106,7 @@ graphify-out/*
 *.cert
 *.crt
 .agents/
+
+# Local deploy state
+.deploy.lock
+.deploy-backups/

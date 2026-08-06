@@ -16,9 +16,11 @@ export default function Navigation() {
           onClick={() => router.push("/")}
           aria-label="Navigate to home"
         >
-          <div className="size-8 rounded bg-linear-to-br from-[#f97815] to-orange-700 flex items-center justify-center text-white">
-            <span className="material-symbols-outlined text-[20px]">hub</span>
-          </div>
+          <img
+            src="/hiperrouter-mark.svg"
+            alt="HiperRouter"
+            className="size-8 rounded"
+          />
           <h2 className="text-white text-xl font-bold tracking-tight">HiperRouter</h2>
         </button>
 
@@ -69,4 +71,3 @@ export default function Navigation() {
     </nav>
   );
 }
-
