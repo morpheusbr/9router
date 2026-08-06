@@ -139,7 +139,7 @@ async function startChatUI(port) {
 
   // godModeRules modularizado — core sempre presente, extras por comando
   const RULES_CORE = `\nREGRAS CRÍTICAS DO SISTEMA:
-1. TERMINAL: Comandos bash DEVE ser prefixados com 'rtk '. CWD: ${process.cwd()}.
+1. TERMINAL: Comandos bash DEVEM estar OBRIGATORIAMENTE dentro de blocos markdown \`\`\`bash e \`\`\` e ser prefixados com 'rtk '. CWD: ${process.cwd()}.
 2. NUNCA PEÇA PARA O USUÁRIO COLAR CÓDIGO: Use o terminal (rtk cat) para ler arquivos.
 3. NUNCA ALUCINE BUGS: Valide se o bug existe lendo os arquivos REAIS antes de propor patches.
 4. ZERO XML INVENTADO: É PROIBIDO gerar blocos <tool_call> ou <function>. Use markdown puro.
@@ -188,14 +188,14 @@ async function startChatUI(port) {
     const contextPct = Math.min(99, Math.round((estimatedTokens / contextLimit) * 100));
     const contextColor = contextPct > 80 ? COLORS.red : contextPct > 50 ? COLORS.yellow : COLORS.green;
     const compactMode = require("./utils/configStore").get("compactMode", false);
+    const rawStatus = ` 🤖 Model: ${model} │ ⚡ Persona: ${activePersona.toUpperCase()} │ 🌐 Lang: ${activeLang} │ 📡 Port: :${port} │ 💬 Msgs: ${messages.length} │ 🧠 Ctx: ~${contextPct}% │ ⏱️ Uptime: ${uptimeMin}m `;
+    const boxWidth = Math.max(78, rawStatus.length + 4);
+    const innerWidth = boxWidth - 2;
 
     if (compactMode) {
       // Compact status bar - single line
       console.log(`${COLORS.dim}${model} │ ${activePersona.toUpperCase()} │ ${messages.length}msg │ ${contextColor}~${contextPct}%${COLORS.reset} │ ${uptimeMin}m`);
     } else {
-      const rawStatus = ` 🤖 Model: ${model} │ ⚡ Persona: ${activePersona.toUpperCase()} │ 🌐 Lang: ${activeLang} │ 📡 Port: :${port} │ 💬 Msgs: ${messages.length} │ 🧠 Ctx: ~${contextPct}% │ ⏱️ Uptime: ${uptimeMin}m `;
-      const boxWidth = Math.max(78, rawStatus.length + 4);
-      const innerWidth = boxWidth - 2;
       const paddingRight = Math.max(0, innerWidth - rawStatus.length);
       const coloredStatus = ` 🤖 Model: ${COLORS.cyan}${model}${COLORS.reset} │ ⚡ Persona: ${COLORS.green}${activePersona.toUpperCase()}${COLORS.reset} │ 🌐 Lang: ${COLORS.cyan}${activeLang}${COLORS.reset} │ 📡 Port: ${COLORS.yellow}:${port}${COLORS.reset} │ 💬 Msgs: ${messages.length} │ 🧠 Ctx: ${contextColor}~${contextPct}%${COLORS.reset} │ ⏱️ Uptime: ${uptimeMin}m ${" ".repeat(paddingRight)}`;
 
@@ -705,6 +705,7 @@ async function startChatUI(port) {
       port, apiKey, model,
       toolRegistry: registry,
       confirmFn: confirmWithAuto,
+      ctxLimit,
     });
 
     // --- Display Event Handlers ---
@@ -792,6 +793,14 @@ async function startChatUI(port) {
 
     runtime.on("thinking", () => {
       // Indicador visual de re-entrada no LLM
+    });
+
+    runtime.on("thinking_start", () => {
+      process.stdout.write(`${COLORS.dim}🧠 [Pensando...] ${COLORS.reset}`);
+    });
+
+    runtime.on("thinking_end", () => {
+      process.stdout.write(`${COLORS.dim}[Fim do pensamento]${COLORS.reset}\n`);
     });
 
     runtime.on("error", (err) => {

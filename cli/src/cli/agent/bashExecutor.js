@@ -96,6 +96,7 @@ async function runBashCommand(rawCmd, opts = {}) {
     feedbackToAI = false,
     selfHealing = false,
     confirmFn,
+    ctxLimit = 32768,
   } = opts;
 
   if (!messages) {
@@ -230,7 +231,8 @@ async function runBashCommand(rawCmd, opts = {}) {
     }
 
     if (feedbackToAI) {
-      const sanitizedOut = sanitizePromptContext(output.substring(0, 50000));
+      const maxOutputChars = Math.max(2000, Math.floor(ctxLimit * 0.1) * 4); // 10% do contexto em chars
+      const sanitizedOut = sanitizePromptContext(output.substring(0, maxOutputChars));
       messages.push({ role: 'system', content: `Resultado:\n\`\`\`\n${sanitizedOut}\n\`\`\`\nContinue.` });
       return { aiThinking: true, shouldBreak: true };
     }

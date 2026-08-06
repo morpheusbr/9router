@@ -18,12 +18,22 @@ module.exports = {
    * @returns {Array<{funcName: string, cmd: string, rawMatch: string}>}
    */
   extract(aiFullMessage) {
-    const matches = [...aiFullMessage.matchAll(/<tool_call>[\s\S]*?<function[\s=]+(?:name=)?"?([^>"]+)"?>[\s\S]*?<\/function>[\s\S]*?<\/tool_call>/g)];
+    const matches = [...aiFullMessage.matchAll(/<tool_call>([\s\S]*?)<\/tool_call>/gi)];
     const actions = [];
 
     for (const match of matches) {
-      const funcName = match[1].trim();
-      const paramsBlock = match[2] || match[0]; // fallback to full match for param extraction
+      const innerContent = match[1];
+      const rawMatch = match[0];
+      
+      const functionMatch = innerContent.match(/<function[\s=]+(?:name=)?"?([^>"]+)"?>([\s\S]*?)<\/function>/i);
+      
+      if (!functionMatch) {
+        actions.push({ funcName: "MALFORMED_TOOL_CALL", cmd: "", rawMatch, unknown: true });
+        continue;
+      }
+
+      const funcName = functionMatch[1].trim();
+      const paramsBlock = functionMatch[2];
       let cmd = "";
 
       if (funcName === "bash") {
@@ -41,9 +51,9 @@ module.exports = {
       }
 
       if (cmd) {
-        actions.push({ funcName, cmd, rawMatch: match[0] });
+        actions.push({ funcName, cmd, rawMatch });
       } else {
-        actions.push({ funcName, cmd: "", rawMatch: match[0], unknown: true });
+        actions.push({ funcName, cmd: "", rawMatch, unknown: true });
       }
     }
 
@@ -57,7 +67,7 @@ module.exports = {
    * @returns {Promise<{aiThinking: boolean, shouldBreak: boolean}>}
    */
   async execute(action, context) {
-    const { messages, aiFullMessage, confirmFn } = context;
+    const { messages, aiFullMessage, confirmFn, ctxLimit } = context;
     const { COLORS } = require("../../utils/input");
 
     if (action.unknown) {
@@ -76,6 +86,7 @@ module.exports = {
       pushAssistantFirst: true,
       feedbackToAI: true,
       confirmFn,
+      ctxLimit,
     });
   }
 };

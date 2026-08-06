@@ -12,7 +12,7 @@ module.exports = {
   phase: "post",
 
   /**
-   * Extrai todos os blocos ```bash``` da mensagem da IA.
+   * Extrai todos os blocos ```bash``` OU <rtk>...</rtk> da mensagem da IA.
    * Ignora se houver <tool_call> (processado por xmlToolCallTool).
    * @param {string} aiFullMessage
    * @returns {Array<{command: string}>}
@@ -21,10 +21,23 @@ module.exports = {
     // Se houver XML tool calls, o bashTool não age (evita duplicatas)
     if (aiFullMessage.includes('<tool_call>')) return [];
 
-    const matches = [...aiFullMessage.matchAll(/```bash\n([\s\S]*?)```/g)];
-    return matches
-      .map(m => ({ command: m[1].trim() }))
-      .filter(a => a.command.length > 0);
+    const actions = [];
+    
+    // Pattern 1: ```bash ... ```
+    const bashMatches = [...aiFullMessage.matchAll(/```bash\n([\s\S]*?)```/g)];
+    for (const m of bashMatches) {
+      const cmd = m[1].trim();
+      if (cmd.length > 0) actions.push({ command: cmd });
+    }
+    
+    // Pattern 2: <rtk>...</rtk> or <rtk command>...</rtk>
+    const rtkMatches = [...aiFullMessage.matchAll(/<rtk(?:\s[^>]*)?>([\s\S]*?)<\/rtk>/gi)];
+    for (const m of rtkMatches) {
+      const cmd = m[1].trim();
+      if (cmd.length > 0) actions.push({ command: cmd });
+    }
+    
+    return actions;
   },
 
   /**
@@ -34,7 +47,7 @@ module.exports = {
    * @returns {Promise<{aiThinking: boolean, shouldBreak: boolean}>}
    */
   async execute(action, context) {
-    const { messages, aiFullMessage, confirmFn, executedCmds } = context;
+    const { messages, aiFullMessage, confirmFn, executedCmds, ctxLimit } = context;
 
     // Pula comandos já executados neste turno
     if (executedCmds && executedCmds.has(action.command)) {
@@ -50,6 +63,7 @@ module.exports = {
       pushAssistantFirst: true,
       feedbackToAI: true,
       confirmFn,
+      ctxLimit,
     });
   }
 };

@@ -7,6 +7,7 @@ const path = require("path");
 const configStore = require("../utils/configStore");
 const { resolvePort } = require("../utils/lifecycle");
 const { getApiKeys, createApiKey } = require("../api/client");
+const fs = require("fs");
 
 async function resolveLocalApiKey() {
   const cached = configStore.get("localApiKey");
@@ -39,7 +40,7 @@ async function run(args) {
   for (let i = 0; i < args.length; i++) {
     const a = args[i];
     if ((a === "--model" || a === "-m") && args[i + 1])       opts.model   = args[++i];
-    else if ((a === "--port"  || a === "-p") && args[i + 1])  opts.port    = parseInt(args[++i], 10);
+    else if ((a === "--port"  || a === "-p") && args[i + 1])  opts.port    = args[++i];
     else if ((a === "--iter"  || a === "-n") && args[i + 1])  opts.maxIter = args[++i];
     else if (a === "--cwd" && args[i + 1])                    opts.cwd     = args[++i];
     else if (a === "--help" || a === "-h") {
@@ -69,10 +70,27 @@ Exemplos:
     return 1;
   }
 
-  const port    = resolvePort(opts.port);
+  if (opts.port !== null && (!/^\d+$/.test(String(opts.port)) || Number(opts.port) < 1 || Number(opts.port) > 65535)) {
+    console.error("❌ --port deve ser um número entre 1 e 65535.");
+    return 1;
+  }
+  const port    = resolvePort(opts.port === null ? null : Number(opts.port));
   const model   = opts.model   || configStore.get("defaultModel", "meu-combo");
-  const maxIter = opts.maxIter || "20";
+  const maxIter = Number(opts.maxIter || 20);
   const cwd     = opts.cwd     || process.cwd();
+
+  if (!Number.isInteger(maxIter) || maxIter < 1 || maxIter > 100) {
+    console.error("❌ --iter deve ser um inteiro entre 1 e 100.");
+    return 1;
+  }
+  let resolvedCwd;
+  try {
+    resolvedCwd = fs.realpathSync(cwd);
+    if (!fs.statSync(resolvedCwd).isDirectory()) throw new Error("não é um diretório");
+  } catch (error) {
+    console.error(`❌ --cwd inválido: ${cwd} (${error.message})`);
+    return 1;
+  }
 
   const apiKey = await resolveLocalApiKey();
   if (!apiKey) {
@@ -84,6 +102,7 @@ Exemplos:
 
   return new Promise((resolve) => {
     const worker = spawn(process.execPath, [workerPath], {
+      cwd: resolvedCwd,
       stdio: "inherit",
       env: {
         ...process.env,
@@ -91,8 +110,8 @@ Exemplos:
         HIPERROUTER_PORT:     String(port),
         HIPERROUTER_MODEL:    model,
         HIPERROUTER_PROMPT:   taskPrompt,
-        HIPERROUTER_CWD:      cwd,
-        HIPERROUTER_MAX_ITER: maxIter,
+        HIPERROUTER_CWD:      resolvedCwd,
+        HIPERROUTER_MAX_ITER: String(maxIter),
       },
     });
 

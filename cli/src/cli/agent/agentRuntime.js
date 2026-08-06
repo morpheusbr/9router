@@ -44,14 +44,16 @@ class AgentRuntime extends EventEmitter {
    * @param {string} opts.model         - Modelo LLM ativo
    * @param {import('./toolRegistry').ToolRegistry} opts.toolRegistry - Registry de ferramentas
    * @param {Function} opts.confirmFn   - Função de confirmação interativa
+   * @param {number} [opts.ctxLimit]    - Limite de tokens do contexto atual
    */
-  constructor({ port, apiKey, model, toolRegistry, confirmFn }) {
+  constructor({ port, apiKey, model, toolRegistry, confirmFn, ctxLimit }) {
     super();
     this.port = port;
     this.apiKey = apiKey;
     this.model = model;
     this.toolRegistry = toolRegistry;
     this.confirmFn = confirmFn;
+    this.ctxLimit = ctxLimit || 32768;
     this.state = STATE.IDLE;
 
     // Métricas de sessão acumuladas por run()
@@ -145,6 +147,7 @@ class AgentRuntime extends EventEmitter {
           port: this.port,
           model: this.model,
           cwd: process.cwd(),
+          ctxLimit: this.ctxLimit,
         };
 
         // Executar tools na ordem do registry
@@ -184,8 +187,13 @@ class AgentRuntime extends EventEmitter {
         }
 
         // --- 4. Push assistant message se nenhuma tool tomou controle ---
-        if (!aiThinking && aiFullMessage && aiFullMessage.trim().length > 0) {
-          messages.push({ role: "assistant", content: aiFullMessage });
+        // Strip thinking and rtk tags before pushing to history to avoid loops
+        let cleanMessage = aiFullMessage
+          .replace(/<think>[\s\S]*?<\/think>/gi, '')
+          .replace(/<rtk(?:\s[^>]*)?>[\s\S]*?<\/rtk>/gi, '')
+          .trim();
+        if (!aiThinking && cleanMessage.length > 0) {
+          messages.push({ role: "assistant", content: cleanMessage });
         }
 
         console.log("\n");
@@ -259,6 +267,8 @@ class AgentRuntime extends EventEmitter {
     let aiFullMessage = "";
     let pendingPrint = "";
     let inToolCall = false;
+    let inThinking = false;
+    let inRtk = false;
     let tokenCount = 0;
 
     if (response.body) {
@@ -311,8 +321,99 @@ class AgentRuntime extends EventEmitter {
               aiFullMessage += content;
               pendingPrint += content;
 
-              // --- Streaming display with <tool_call> suppression ---
+              // --- Streaming display with <tool_call>, <think>, and <rtk> suppression ---
               while (pendingPrint.length > 0) {
+                // Handle <think> tag suppression (same pattern as tool_call)
+                if (!inToolCall && !inThinking && !inRtk) {
+                  let thinkStart = pendingPrint.indexOf('<think>');
+                  let partialThink = -1;
+                  for (let i = 1; i <= '<think>'.length; i++) {
+                    if (pendingPrint.endsWith('<think>'.substring(0, i))) {
+                      partialThink = pendingPrint.length - i;
+                      break;
+                    }
+                  }
+                  if (thinkStart !== -1) {
+                    // Emit text before think tag, then show thinking indicator
+                    this.emit("chunk", pendingPrint.substring(0, thinkStart));
+                    this.emit("thinking_start");
+                    inThinking = true;
+                    pendingPrint = pendingPrint.substring(thinkStart + '<think>'.length);
+                    continue;
+                  } else if (partialThink !== -1) {
+                    this.emit("chunk", pendingPrint.substring(0, partialThink));
+                    pendingPrint = pendingPrint.substring(partialThink);
+                    break; // wait for more
+                  }
+                }
+                if (inThinking) {
+                  let thinkEnd = pendingPrint.indexOf('</think>');
+                  let partialThinkEnd = -1;
+                  for (let i = 1; i <= '</think>'.length; i++) {
+                    if (pendingPrint.endsWith('</think>'.substring(0, i))) {
+                      partialThinkEnd = pendingPrint.length - i;
+                      break;
+                    }
+                  }
+                  if (thinkEnd !== -1) {
+                    inThinking = false;
+                    this.emit("thinking_end");
+                    pendingPrint = pendingPrint.substring(thinkEnd + '</think>'.length);
+                  } else if (partialThinkEnd !== -1) {
+                    pendingPrint = pendingPrint.substring(partialThinkEnd);
+                    break;
+                  } else {
+                    pendingPrint = "";
+                  }
+                  continue;
+                }
+                // Handle <rtk>...</rtk> tag suppression
+                if (!inToolCall && !inRtk) {
+                  let rtkStart = pendingPrint.indexOf('<rtk');
+                  let partialRtk = -1;
+                  for (let i = 1; i <= '<rtk'.length; i++) {
+                    if (pendingPrint.endsWith('<rtk'.substring(0, i))) {
+                      partialRtk = pendingPrint.length - i;
+                      break;
+                    }
+                  }
+                  if (rtkStart !== -1) {
+                    this.emit("chunk", pendingPrint.substring(0, rtkStart));
+                    inRtk = true;
+                    // Find the closing > of the opening tag
+                    const closeTag = pendingPrint.indexOf('>', rtkStart);
+                    if (closeTag !== -1) {
+                      pendingPrint = pendingPrint.substring(closeTag + 1);
+                    } else {
+                      pendingPrint = pendingPrint.substring(rtkStart + '<rtk'.length);
+                    }
+                    continue;
+                  } else if (partialRtk !== -1) {
+                    this.emit("chunk", pendingPrint.substring(0, partialRtk));
+                    pendingPrint = pendingPrint.substring(partialRtk);
+                    break;
+                  }
+                }
+                if (inRtk) {
+                  let rtkEnd = pendingPrint.indexOf('</rtk>');
+                  let partialRtkEnd = -1;
+                  for (let i = 1; i <= '</rtk>'.length; i++) {
+                    if (pendingPrint.endsWith('</rtk>'.substring(0, i))) {
+                      partialRtkEnd = pendingPrint.length - i;
+                      break;
+                    }
+                  }
+                  if (rtkEnd !== -1) {
+                    inRtk = false;
+                    pendingPrint = pendingPrint.substring(rtkEnd + '</rtk>'.length);
+                  } else if (partialRtkEnd !== -1) {
+                    pendingPrint = pendingPrint.substring(partialRtkEnd);
+                    break;
+                  } else {
+                    pendingPrint = "";
+                  }
+                  continue;
+                }
                 if (!inToolCall) {
                   let tagStart = pendingPrint.indexOf('<tool_call>');
                   let partialStart = -1;
@@ -364,7 +465,7 @@ class AgentRuntime extends EventEmitter {
       }
 
       // Flush remaining visible text
-      if (pendingPrint.length > 0 && !inToolCall) {
+      if (pendingPrint.length > 0 && !inToolCall && !inThinking && !inRtk) {
         this.emit("chunk", pendingPrint);
       }
     }
@@ -383,10 +484,18 @@ class AgentRuntime extends EventEmitter {
    * @private
    */
   async _selfHealingBashPass(aiFullMessage, messages, executedCmds) {
+    // Match ```bash...```, <rtk>...</rtk> patterns, and raw lines starting with 'rtk '
     const bashMatches = [...aiFullMessage.matchAll(/```(?:bash|sh)\n([\s\S]*?)\n```/g)];
+    const rtkMatches = [...aiFullMessage.matchAll(/<rtk(?:\s[^>]*)?>([\s\S]*?)<\/rtk>/gi)];
+    const rawRtkMatches = [...aiFullMessage.matchAll(/(?:^|\n)(rtk\s+[^\n]+)/g)];
+    
+    const allCommands = [
+      ...bashMatches.map(m => m[1].trim()),
+      ...rtkMatches.map(m => m[1].trim()),
+      ...rawRtkMatches.map(m => m[1].trim())
+    ].filter(cmd => cmd.length > 0);
 
-    for (const match of bashMatches) {
-      const cmd = match[1].trim();
+    for (const cmd of allCommands) {
       if (executedCmds.has(cmd)) continue; // já executado no pass anterior
 
       const result = await runBashCommand(cmd, {
@@ -398,6 +507,7 @@ class AgentRuntime extends EventEmitter {
         feedbackToAI: false,
         selfHealing: true,
         confirmFn: this.confirmFn,
+        ctxLimit: this.ctxLimit,
       });
 
       if (result.shouldBreak) {

@@ -17,6 +17,7 @@ const fs = require("fs");
 const path = require("path");
 const { injectRtkPrefix } = require("../agent/bashExecutor");
 const { validateSyntaxPostPatch, createRotatingBackup } = require("../chat/patchEngine");
+const { resolveWorkspacePath } = require("../agent/workspaceGuard");
 
 const API_KEY   = process.env.HIPERROUTER_API_KEY;
 const API_PORT  = parseInt(process.env.HIPERROUTER_PORT || "20128", 10);
@@ -24,6 +25,18 @@ const MODEL     = process.env.HIPERROUTER_MODEL || "meu-combo";
 const PROMPT    = process.env.HIPERROUTER_PROMPT || "";
 const WORK_DIR  = process.env.HIPERROUTER_CWD || process.cwd();
 const MAX_ITER  = parseInt(process.env.HIPERROUTER_MAX_ITER || "20", 10);
+
+if (!Number.isInteger(MAX_ITER) || MAX_ITER < 1 || MAX_ITER > 100) {
+  console.error("ERRO: HIPERROUTER_MAX_ITER deve ser um inteiro entre 1 e 100.");
+  process.exit(1);
+}
+
+try {
+  if (!fs.statSync(WORK_DIR).isDirectory()) throw new Error("não é um diretório");
+} catch (error) {
+  console.error(`ERRO: diretório de trabalho inválido: ${WORK_DIR} (${error.message})`);
+  process.exit(1);
+}
 
 // Comandos bloqueados por segurança
 const BLOCKED_COMMANDS = [
@@ -142,11 +155,13 @@ const TOOLS = [
 // ─── Execução de ferramentas ──────────────────────────────────────────────────
 
 function resolvePath(p) {
-  return path.isAbsolute(p) ? p : path.join(WORK_DIR, p);
+  return resolveWorkspacePath(WORK_DIR, p, { allowMissing: true });
 }
 
 function toolListDir(args) {
-  const target = resolvePath(args.path || ".");
+  let target;
+  try { target = resolvePath(args.path || "."); }
+  catch (e) { return `ERRO: ${e.message}`; }
   try {
     const entries = fs.readdirSync(target, { withFileTypes: true });
     const lines = entries.map((e) => `${e.isDirectory() ? "d" : "f"}  ${e.name}`);
@@ -157,7 +172,9 @@ function toolListDir(args) {
 }
 
 function toolReadFile(args) {
-  const target = resolvePath(args.path);
+  let target;
+  try { target = resolvePath(args.path); }
+  catch (e) { return `ERRO: ${e.message}`; }
   try {
     const stat = fs.statSync(target);
     if (stat.size > 100 * 1024) return `ERRO: Arquivo muito grande (${stat.size} bytes). Máximo: 100KB.`;
@@ -168,7 +185,9 @@ function toolReadFile(args) {
 }
 
 function toolWriteFile(args) {
-  const target = resolvePath(args.path);
+  let target;
+  try { target = resolvePath(args.path); }
+  catch (e) { return `ERRO: ${e.message}`; }
   try {
     fs.mkdirSync(path.dirname(target), { recursive: true });
     fs.writeFileSync(target, args.content, "utf8");
@@ -198,7 +217,10 @@ function toolRunCommand(args) {
 }
 
 function toolSearchFiles(args) {
-  const dir = resolvePath(args.dir || ".");
+  let dir;
+  try { dir = resolvePath(args.dir || "."); }
+  catch (e) { return `ERRO: ${e.message}`; }
+  if (typeof args.pattern !== "string" || !args.pattern) return "ERRO: pattern é obrigatório";
   const include = args.include ? `--include="${args.include}"` : "";
   const cmd = `rtk grep -r ${include} -n --max-count=5 -E "${args.pattern.replace(/"/g, '\\"')}" "${dir}" 2>/dev/null | head -50`;
   try {
@@ -210,7 +232,9 @@ function toolSearchFiles(args) {
 }
 
 function toolPatchFile(args) {
-  const target = resolvePath(args.path);
+  let target;
+  try { target = resolvePath(args.path); }
+  catch (e) { return `ERRO: ${e.message}`; }
   try {
     if (!fs.existsSync(target)) return `ERRO: Arquivo não encontrado: ${target}`;
 
@@ -248,14 +272,18 @@ function executeTool(name, rawArgs) {
   try { args = typeof rawArgs === "string" ? JSON.parse(rawArgs) : rawArgs; }
   catch { return `ERRO: argumentos inválidos: ${rawArgs}`; }
 
-  switch (name) {
-    case "list_dir":     return toolListDir(args);
-    case "read_file":    return toolReadFile(args);
-    case "write_file":   return toolWriteFile(args);
-    case "run_command":  return toolRunCommand(args);
-    case "search_files": return toolSearchFiles(args);
-    case "patch_file":   return toolPatchFile(args);
-    default:             return `ERRO: ferramenta desconhecida "${name}"`;
+  try {
+    switch (name) {
+      case "list_dir":     return toolListDir(args);
+      case "read_file":    return toolReadFile(args);
+      case "write_file":   return toolWriteFile(args);
+      case "run_command":  return toolRunCommand(args);
+      case "search_files": return toolSearchFiles(args);
+      case "patch_file":   return toolPatchFile(args);
+      default:              return `ERRO: ferramenta desconhecida "${name}"`;
+    }
+  } catch (error) {
+    return `ERRO: falha interna da ferramenta: ${error.message}`;
   }
 }
 
