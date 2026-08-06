@@ -34,7 +34,7 @@ async function resolveLocalApiKey() {
 }
 
 async function run(args) {
-  const opts = { model: null, port: null, maxIter: null, cwd: null };
+  const opts = { model: null, port: null, maxIter: null, cwd: null, timeout: null, json: false, dryRun: false };
   const promptParts = [];
 
   for (let i = 0; i < args.length; i++) {
@@ -43,6 +43,9 @@ async function run(args) {
     else if ((a === "--port"  || a === "-p") && args[i + 1])  opts.port    = args[++i];
     else if ((a === "--iter"  || a === "-n") && args[i + 1])  opts.maxIter = args[++i];
     else if (a === "--cwd" && args[i + 1])                    opts.cwd     = args[++i];
+    else if (a === "--timeout" && args[i + 1])                 opts.timeout = args[++i];
+    else if (a === "--json")                                  opts.json = true;
+    else if (a === "--dry-run")                               opts.dryRun = true;
     else if (a === "--help" || a === "-h") {
       console.log(`
 Uso: hiperrouter task "<prompt>" [opções]
@@ -51,6 +54,9 @@ Uso: hiperrouter task "<prompt>" [opções]
   -p, --port  <n>     Porta do gateway (default: 20128)
   -n, --iter  <n>     Máximo de iterações (default: 20)
       --cwd   <dir>   Diretório de trabalho (default: cwd atual)
+      --timeout <ms>   Timeout por comando (default: 15000)
+      --json           Saída estruturada para CI/automação
+      --dry-run        Não executa comandos nem altera arquivos
   -h, --help          Mostrar ajuda
 
 Exemplos:
@@ -83,6 +89,11 @@ Exemplos:
     console.error("❌ --iter deve ser um inteiro entre 1 e 100.");
     return 1;
   }
+  const timeout = Number(opts.timeout || 15000);
+  if (!Number.isInteger(timeout) || timeout < 100 || timeout > 600000) {
+    console.error("❌ --timeout deve ser um inteiro entre 100 e 600000 ms.");
+    return 1;
+  }
   let resolvedCwd;
   try {
     resolvedCwd = fs.realpathSync(cwd);
@@ -112,6 +123,9 @@ Exemplos:
         HIPERROUTER_PROMPT:   taskPrompt,
         HIPERROUTER_CWD:      resolvedCwd,
         HIPERROUTER_MAX_ITER: String(maxIter),
+        HIPERROUTER_COMMAND_TIMEOUT: String(timeout),
+        HIPERROUTER_JSON: opts.json ? "1" : "0",
+        HIPERROUTER_DRY_RUN: opts.dryRun ? "1" : "0",
       },
     });
 

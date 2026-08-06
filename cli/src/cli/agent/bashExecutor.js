@@ -97,6 +97,9 @@ async function runBashCommand(rawCmd, opts = {}) {
     selfHealing = false,
     confirmFn,
     ctxLimit = 32768,
+    signal,
+    timeoutMs = 120000,
+    maxOutputChars = 512000,
   } = opts;
 
   if (!messages) {
@@ -150,37 +153,71 @@ async function runBashCommand(rawCmd, opts = {}) {
   if (pushAssistantFirst) messages.push({ role: 'assistant', content: aiFullMessage });
 
   try {
-    const output = await new Promise((resolve, reject) => {
-      const child = spawn(finalCmd, { shell: true, stdio: ['inherit', 'pipe', 'pipe'] });
-      let out = "";
+      const output = await new Promise((resolve, reject) => {
+        const child = spawn(finalCmd, { shell: true, stdio: ['inherit', 'pipe', 'pipe'] });
+        let out = "";
+        let truncated = false;
+        let settled = false;
+        let timeout = null;
+
+        const finish = (fn, value) => {
+          if (settled) return;
+          settled = true;
+          if (timeout) clearTimeout(timeout);
+          if (signal) signal.removeEventListener("abort", onAbort);
+          fn(value);
+        };
+        const onAbort = () => {
+          child.kill("SIGTERM");
+          finish(reject, new DOMException("Aborted", "AbortError"));
+        };
+        const appendOutput = data => {
+          if (out.length >= maxOutputChars) {
+            truncated = true;
+            return;
+          }
+          const text = data.toString();
+          const available = maxOutputChars - out.length;
+          out += text.substring(0, available);
+          if (text.length > available) truncated = true;
+        };
 
       // Progress indicator
       let timer = null;
       let ticks = 0;
       const progressChars = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
-      timer = setInterval(() => {
-        process.stdout.write(`\r\x1b[36mRodando comando... ${progressChars[ticks++ % progressChars.length]}\x1b[0m`);
-      }, 100);
+       timer = process.stdout.isTTY ? setInterval(() => {
+         process.stdout.write(`\r\x1b[36mRodando comando... ${progressChars[ticks++ % progressChars.length]}\x1b[0m`);
+       }, 100) : null;
 
       if (child.stdout) {
-        child.stdout.on('data', data => { out += data.toString(); });
+         child.stdout.on('data', appendOutput);
       }
       if (child.stderr) {
-        child.stderr.on('data', data => { out += data.toString(); });
+         child.stderr.on('data', appendOutput);
       }
 
       child.on('close', code => {
         clearInterval(timer);
         process.stdout.write(`\r\x1b[K`);
-        if (code === 0) resolve(out);
-        else reject(new Error(out || `Process exited with code ${code}`));
+         const rendered = truncated ? `${out}\n[output truncated at ${maxOutputChars} chars]` : out;
+         if (code === 0) finish(resolve, rendered);
+         else finish(reject, new Error(rendered || `Process exited with code ${code}`));
       });
       child.on('error', err => {
         clearInterval(timer);
         process.stdout.write(`\r\x1b[K`);
-        reject(err);
+         finish(reject, err);
+       });
+       timeout = setTimeout(() => {
+         child.kill("SIGTERM");
+         finish(reject, new Error(`Process timeout after ${timeoutMs}ms`));
+       }, timeoutMs);
+       if (signal) {
+         if (signal.aborted) onAbort();
+         else signal.addEventListener("abort", onAbort, { once: true });
+       }
       });
-    });
 
     // --- Output Display (truncado para o terminal) ---
     const outputLines = output.split('\n');

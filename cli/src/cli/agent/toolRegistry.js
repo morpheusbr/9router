@@ -34,21 +34,31 @@ class ToolRegistry {
    * @param {object} tool - Tool com interface { name, description, phase, extract, execute }
    */
   register(tool) {
-    if (!tool.name || typeof tool.extract !== "function" || typeof tool.execute !== "function") {
+    if (!tool || typeof tool !== "object" || typeof tool.name !== "string" || !tool.name.trim()
+      || typeof tool.extract !== "function" || typeof tool.execute !== "function") {
       throw new Error(`Tool inválida: faltam propriedades obrigatórias (name, extract, execute)`);
+    }
+    if (tool.phase !== undefined && tool.phase !== "streaming" && tool.phase !== "post") {
+      throw new Error(`Tool '${tool.name}' possui fase inválida: ${tool.phase}`);
+    }
+    if (tool.description !== undefined && typeof tool.description !== "string") {
+      throw new Error(`Tool '${tool.name}' possui descrição inválida`);
     }
     // Evitar duplicatas
     if (this._tools.some(t => t.name === tool.name)) {
       throw new Error(`Tool '${tool.name}' já registrada.`);
     }
-    this._tools.push(tool);
+    this._tools.push(Object.freeze({ ...tool }));
   }
 
   /**
    * Retorna todas as tools registradas, ordenadas por fase.
    */
   getAll() {
-    return [...this._tools];
+    return [...this._tools].sort((a, b) => {
+      if (a.phase === b.phase) return 0;
+      return a.phase === "streaming" ? -1 : 1;
+    });
   }
 
   /**

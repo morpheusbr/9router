@@ -47,7 +47,7 @@ module.exports = {
    * @returns {Promise<{aiThinking: boolean, shouldBreak: boolean}>}
    */
   async execute(action, context) {
-    const { messages, aiFullMessage, confirmFn, executedCmds, ctxLimit } = context;
+    const { messages, aiFullMessage, confirmFn, executedCmds, ctxLimit, signal } = context;
 
     // Pula comandos já executados neste turno
     if (executedCmds && executedCmds.has(action.command)) {
@@ -64,6 +64,7 @@ module.exports = {
       feedbackToAI: true,
       confirmFn,
       ctxLimit,
+      signal,
     });
   }
 };

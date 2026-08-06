@@ -55,6 +55,8 @@ class AgentRuntime extends EventEmitter {
     this.confirmFn = confirmFn;
     this.ctxLimit = ctxLimit || 32768;
     this.state = STATE.IDLE;
+    this._activeRun = false;
+    this._abortController = null;
 
     // Métricas de sessão acumuladas por run()
     this._requestCount = 0;
@@ -67,6 +69,13 @@ class AgentRuntime extends EventEmitter {
    */
   setModel(newModel) {
     this.model = newModel;
+  }
+
+  /** Cancela a execução atual e encerra a requisição HTTP em andamento. */
+  cancel(reason = "Execução cancelada pelo usuário") {
+    if (!this._activeRun || !this._abortController) return false;
+    this._abortController.abort(reason);
+    return true;
   }
 
   /**
@@ -85,6 +94,17 @@ class AgentRuntime extends EventEmitter {
    * @returns {Promise<{requestCount: number, totalTokens: number, finalMessage: string}>}
    */
   async run(messages, opts = {}) {
+    if (this._activeRun) throw new Error("AgentRuntime já possui uma execução ativa");
+    const maxIterations = Number.isInteger(opts.maxIterations) && opts.maxIterations > 0
+      ? Math.min(opts.maxIterations, 100) : 20;
+    const maxToolActions = Number.isInteger(opts.maxToolActions) && opts.maxToolActions > 0
+      ? Math.min(opts.maxToolActions, 500) : 100;
+    this._abortController = new AbortController();
+    if (opts.signal) {
+      if (opts.signal.aborted) this._abortController.abort(opts.signal.reason);
+      else opts.signal.addEventListener("abort", () => this._abortController.abort(opts.signal.reason), { once: true });
+    }
+    this._activeRun = true;
     this._requestCount = 0;
     this._totalTokens = 0;
 
@@ -92,8 +112,17 @@ class AgentRuntime extends EventEmitter {
     let rateLimitRetries = 0;
     const MAX_RATE_LIMIT_RETRIES = 5;
     let finalMessage = "";
+    let iterations = 0;
+    let toolActions = 0;
+    let cancelled = false;
 
     while (aiThinking) {
+      if (this._abortController.signal.aborted) { cancelled = true; break; }
+      if (iterations >= maxIterations) {
+        this.emit("error", new Error(`Limite de ${maxIterations} iterações atingido`));
+        break;
+      }
+      iterations++;
       aiThinking = false;
       this.state = STATE.STREAMING;
 
@@ -103,7 +132,7 @@ class AgentRuntime extends EventEmitter {
         this._requestCount++;
 
         const { aiFullMessage, tokenCount, error, rateLimited, retryAfter } =
-          await this._streamLLM(messages);
+          await this._streamLLM(messages, this._abortController.signal);
 
         if (rateLimited) {
           rateLimitRetries++;
@@ -117,7 +146,7 @@ class AgentRuntime extends EventEmitter {
           const jitter = Math.floor(Math.random() * 3);
           const waitTime = Math.min(isNaN(retryAfter) ? baseDelay + jitter : retryAfter, 60);
           console.log(`\n${COLORS.yellow}⚠️  Rate limit (429) no modelo '${this.model}' — aguardando ${waitTime}s... (tentativa ${rateLimitRetries}/${MAX_RATE_LIMIT_RETRIES})${COLORS.reset}`);
-          await new Promise(r => setTimeout(r, waitTime * 1000));
+           await this._sleep(waitTime * 1000);
           // Pop duplicata
           if (messages.length > 0 && messages[messages.length - 1].role === 'user') messages.pop();
           aiThinking = true;
@@ -148,6 +177,7 @@ class AgentRuntime extends EventEmitter {
           model: this.model,
           cwd: process.cwd(),
           ctxLimit: this.ctxLimit,
+          signal: this._abortController.signal,
         };
 
         // Executar tools na ordem do registry
@@ -163,6 +193,10 @@ class AgentRuntime extends EventEmitter {
           this.state = STATE.EXECUTING;
 
           for (const action of actions) {
+            toolActions++;
+            if (toolActions > maxToolActions) {
+              throw new Error(`Limite de ${maxToolActions} ações de ferramenta atingido`);
+            }
             this.emit("tool_executing", { tool: tool.name, action });
 
             const result = await tool.execute(action, context);
@@ -203,6 +237,10 @@ class AgentRuntime extends EventEmitter {
         }
 
       } catch (err) {
+        if (this._abortController.signal.aborted || err.name === "AbortError") {
+          cancelled = true;
+          break;
+        }
         const errMsg = err.message || String(err);
         console.log(`\n${COLORS.red}Falha na comunicação: ${errMsg}${COLORS.reset}`);
 
@@ -230,9 +268,28 @@ class AgentRuntime extends EventEmitter {
       requestCount: this._requestCount,
       totalTokens: this._totalTokens,
       finalMessage,
+      iterations,
+      toolActions,
+      cancelled,
     };
+    this._activeRun = false;
+    this._abortController = null;
     this.emit("done", result);
     return result;
+  }
+
+  _sleep(delayMs) {
+    return new Promise((resolve, reject) => {
+      const timer = setTimeout(resolve, delayMs);
+      const signal = this._abortController?.signal;
+      if (!signal) return;
+      const onAbort = () => {
+        clearTimeout(timer);
+        reject(new DOMException("Aborted", "AbortError"));
+      };
+      if (signal.aborted) onAbort();
+      else signal.addEventListener("abort", onAbort, { once: true });
+    });
   }
 
   /**
@@ -243,7 +300,9 @@ class AgentRuntime extends EventEmitter {
    * @returns {Promise<{aiFullMessage: string, tokenCount: number, error?: string, rateLimited?: boolean, retryAfter?: number}>}
    * @private
    */
-  async _streamLLM(messages) {
+  async _streamLLM(messages, signal) {
+    const timeoutSignal = AbortSignal.timeout(600000);
+    const requestSignal = signal ? AbortSignal.any([signal, timeoutSignal]) : timeoutSignal;
     const response = await fetch(`http://localhost:${this.port}/v1/chat/completions`, {
       method: "POST",
       headers: {
@@ -252,7 +311,7 @@ class AgentRuntime extends EventEmitter {
         "x-hiperrouter-cli": "true"
       },
       body: JSON.stringify({ model: this.model, messages, stream: true }),
-      signal: AbortSignal.timeout(600000) // 10 min safety timeout
+      signal: requestSignal // 10 min safety timeout plus explicit cancellation
     });
 
     if (response.status === 429) {
@@ -508,6 +567,7 @@ class AgentRuntime extends EventEmitter {
         selfHealing: true,
         confirmFn: this.confirmFn,
         ctxLimit: this.ctxLimit,
+        signal: this._abortController.signal,
       });
 
       if (result.shouldBreak) {

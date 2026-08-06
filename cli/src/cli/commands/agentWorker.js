@@ -12,7 +12,7 @@
 "use strict";
 
 const http = require("http");
-const { execSync } = require("child_process");
+const { execSync, execFileSync } = require("child_process");
 const fs = require("fs");
 const path = require("path");
 const { injectRtkPrefix } = require("../agent/bashExecutor");
@@ -25,9 +25,32 @@ const MODEL     = process.env.HIPERROUTER_MODEL || "meu-combo";
 const PROMPT    = process.env.HIPERROUTER_PROMPT || "";
 const WORK_DIR  = process.env.HIPERROUTER_CWD || process.cwd();
 const MAX_ITER  = parseInt(process.env.HIPERROUTER_MAX_ITER || "20", 10);
+const COMMAND_TIMEOUT = parseInt(process.env.HIPERROUTER_COMMAND_TIMEOUT || "15000", 10);
+const DRY_RUN = process.env.HIPERROUTER_DRY_RUN === "1";
+const JSON_MODE = process.env.HIPERROUTER_JSON === "1";
+const jsonEvents = [];
+
+function output(text) {
+  if (JSON_MODE) jsonEvents.push({ type: "output", text: String(text) });
+  else process.stdout.write(text);
+}
+
+function log(message) {
+  if (JSON_MODE) jsonEvents.push({ type: "log", message: String(message) });
+  else console.log(message);
+}
+
+function finishJson(status, extra = {}) {
+  if (!JSON_MODE) return;
+  process.stdout.write(`${JSON.stringify({ status, events: jsonEvents, ...extra })}\n`);
+}
 
 if (!Number.isInteger(MAX_ITER) || MAX_ITER < 1 || MAX_ITER > 100) {
   console.error("ERRO: HIPERROUTER_MAX_ITER deve ser um inteiro entre 1 e 100.");
+  process.exit(1);
+}
+if (!Number.isInteger(COMMAND_TIMEOUT) || COMMAND_TIMEOUT < 100 || COMMAND_TIMEOUT > 600000) {
+  console.error("ERRO: HIPERROUTER_COMMAND_TIMEOUT deve estar entre 100 e 600000 ms.");
   process.exit(1);
 }
 
@@ -198,14 +221,16 @@ function toolWriteFile(args) {
 }
 
 function toolRunCommand(args) {
+  if (typeof args.command !== "string" || !args.command.trim()) return "ERRO: command é obrigatório";
   const cmd = injectRtkPrefix(args.command);
   for (const blocked of BLOCKED_COMMANDS) {
     if (blocked.test(cmd)) return `BLOQUEADO: comando proibido por segurança — "${cmd}"`;
   }
+  if (DRY_RUN) return `DRY_RUN: ${cmd}`;
   try {
     const out = execSync(cmd, {
       cwd: WORK_DIR,
-      timeout: 15000,
+      timeout: COMMAND_TIMEOUT,
       maxBuffer: 200 * 1024,
       encoding: "utf8",
       stdio: ["pipe", "pipe", "pipe"],
@@ -221,11 +246,12 @@ function toolSearchFiles(args) {
   try { dir = resolvePath(args.dir || "."); }
   catch (e) { return `ERRO: ${e.message}`; }
   if (typeof args.pattern !== "string" || !args.pattern) return "ERRO: pattern é obrigatório";
-  const include = args.include ? `--include="${args.include}"` : "";
-  const cmd = `rtk grep -r ${include} -n --max-count=5 -E "${args.pattern.replace(/"/g, '\\"')}" "${dir}" 2>/dev/null | head -50`;
   try {
-    const out = execSync(cmd, { encoding: "utf8", timeout: 10000 });
-    return out || "(nenhum resultado)";
+    const grepArgs = ["grep", "-r", "-n", "--max-count=5", "-E"];
+    if (args.include) grepArgs.push(`--include=${args.include}`);
+    grepArgs.push(args.pattern, dir);
+    const out = execFileSync("rtk", grepArgs, { encoding: "utf8", timeout: COMMAND_TIMEOUT, maxBuffer: 200 * 1024 });
+    return out ? out.split("\n").slice(0, 50).join("\n") : "(nenhum resultado)";
   } catch {
     return "(nenhum resultado)";
   }
@@ -271,6 +297,16 @@ function executeTool(name, rawArgs) {
   let args;
   try { args = typeof rawArgs === "string" ? JSON.parse(rawArgs) : rawArgs; }
   catch { return `ERRO: argumentos inválidos: ${rawArgs}`; }
+  if (!args || typeof args !== "object" || Array.isArray(args)) return "ERRO: argumentos devem ser um objeto JSON";
+  const definition = TOOLS.find(tool => tool.function.name === name);
+  if (definition) {
+    const schema = definition.function.parameters;
+    for (const key of schema.required || []) {
+      if (!(key in args) || typeof args[key] !== "string" || (key !== "content" && !args[key].trim())) {
+        return `ERRO: argumento obrigatório ausente ou inválido: ${key}`;
+      }
+    }
+  }
 
   try {
     switch (name) {
@@ -336,7 +372,7 @@ function callGateway(messages) {
 
               if (choice.delta?.content) {
                 fullContent += choice.delta.content;
-                process.stdout.write(choice.delta.content);
+      output(choice.delta.content);
               }
 
               if (choice.delta?.tool_calls) {
@@ -386,9 +422,9 @@ async function agentLoop() {
   if (!PROMPT) { console.error("ERRO: HIPERROUTER_PROMPT não definido."); process.exit(1); }
   if (!API_KEY) { console.error("ERRO: HIPERROUTER_API_KEY não definido."); process.exit(1); }
 
-  console.log(`\n🤖 Agente iniciado`);
-  console.log(`   modelo: ${MODEL} | porta: ${API_PORT} | cwd: ${WORK_DIR}`);
-  console.log(`   max iterações: ${MAX_ITER}\n`);
+  log(`\n🤖 Agente iniciado`);
+  log(`   modelo: ${MODEL} | porta: ${API_PORT} | cwd: ${WORK_DIR}`);
+  log(`   max iterações: ${MAX_ITER} | timeout: ${COMMAND_TIMEOUT}ms | dry-run: ${DRY_RUN}\n`);
 
   const projectCtx = getProjectContext();
   const systemContent = `Você é um agente CLI eficiente. Você tem acesso a ferramentas para explorar o sistema de arquivos, ler e escrever arquivos, executar comandos shell, e aplicar patches cirúrgicos em arquivos. Use-as proativamente para completar tarefas sem pedir informações ao usuário — pesquise, leia os arquivos relevantes e aja.
@@ -405,19 +441,20 @@ ${projectCtx ? `\nContexto do Projeto:\n${projectCtx}` : ''}`;
   try { execSync("rtk git stash create", { cwd: WORK_DIR, encoding: "utf8" }); } catch {}
 
   for (let i = 1; i <= MAX_ITER; i++) {
-    process.stdout.write(`\n${"─".repeat(40)}\n[iter ${i}/${MAX_ITER}] `);
+    output(`\n${"─".repeat(40)}\n[iter ${i}/${MAX_ITER}] `);
 
     let response;
     try {
       response = await callGateway(messages);
     } catch (e) {
       if (e.message.includes('429')) {
-        console.log(`\n⚠️ Rate limited. Aguardando 15s...`);
+        log(`\n⚠️ Rate limited. Aguardando 15s...`);
         await new Promise(r => setTimeout(r, 15000));
         i--; // retry
         continue;
       }
       console.error(`\n❌ Erro no gateway: ${e.message}`);
+      finishJson("error", { error: e.message });
       process.exit(1);
     }
 
@@ -435,10 +472,10 @@ ${projectCtx ? `\nContexto do Projeto:\n${projectCtx}` : ''}`;
 
       for (const call of toolCalls) {
         const { name, arguments: rawArgs } = call.function;
-        process.stdout.write(`\n  🔧 ${name}(${rawArgs.length > 80 ? rawArgs.substring(0, 80) + '...' : rawArgs})`);
+         output(`\n  🔧 ${name}(${rawArgs.length > 80 ? rawArgs.substring(0, 80) + '...' : rawArgs})`);
         const result = executeTool(name, rawArgs);
         const preview = result.length > 120 ? result.slice(0, 120) + "..." : result;
-        process.stdout.write(` → ${preview}`);
+         output(` → ${preview}`);
 
         messages.push({
           role: "tool",
@@ -450,11 +487,13 @@ ${projectCtx ? `\nContexto do Projeto:\n${projectCtx}` : ''}`;
     }
 
     // Resposta final
-    console.log(`\n\n✅ Agente finalizou em ${i} iteração(ões).`);
+    log(`\n\n✅ Agente finalizou em ${i} iteração(ões).`);
+    finishJson("success", { iterations: i });
     process.exit(0);
   }
 
-  console.log(`\n⚠️  Limite de ${MAX_ITER} iterações atingido.`);
+  log(`\n⚠️  Limite de ${MAX_ITER} iterações atingido.`);
+  finishJson("iteration_limit", { iterations: MAX_ITER });
   process.exit(0);
 }
 

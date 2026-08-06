@@ -67,7 +67,7 @@ module.exports = {
    * @returns {Promise<{aiThinking: boolean, shouldBreak: boolean}>}
    */
   async execute(action, context) {
-    const { messages, aiFullMessage, confirmFn, ctxLimit } = context;
+    const { messages, aiFullMessage, confirmFn, ctxLimit, signal } = context;
     const { COLORS } = require("../../utils/input");
 
     if (action.unknown) {
@@ -87,6 +87,7 @@ module.exports = {
       feedbackToAI: true,
       confirmFn,
       ctxLimit,
+      signal,
     });
   }
 };
